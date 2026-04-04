@@ -1,12 +1,12 @@
 # Phases de développement
 
 ## Phase 1 — MVP annotation manuelle
-- Interface de swipe (React) — à créer
-- Backend FastAPI — **squelette en place** (routers posts, annotations)
-- PostgreSQL — **opérationnel** (Docker, schéma appliqué)
+- Interface de swipe (React) — **en place** (MediaViewer, AnnotationForm, selects pré-remplis v0)
+- Backend FastAPI — **architecture en couches** (routers → services → repositories)
+- PostgreSQL — **opérationnel** (Docker, schéma appliqué, données importées)
 - Annotation humaine seule, pas d'IA
 - Produit la vérité terrain
-- **Statut** : en cours
+- **Statut** : en cours — test end-to-end à faire
 
 ## Phase 2 — Classificateur baseline
 - Intégration API modèle vision

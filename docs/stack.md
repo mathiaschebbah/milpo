@@ -3,7 +3,7 @@
 | Composant | Technologie |
 |-----------|-------------|
 | Backend | FastAPI (Python 3.12) |
-| Frontend | React (interface de swipe) — à créer |
+| Frontend | Vite + React + TypeScript + Tailwind v4 + shadcn/ui |
 | Base de données | PostgreSQL 17 (Docker, port 5433) |
 | Modèle vision (classificateur + rewriter) | À confirmer (un seul modèle pour les deux) |
 | Gestion des dépendances | uv |
