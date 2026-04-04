@@ -10,8 +10,9 @@ Fichiers :
 |-------|------|
 | `posts` | Posts Instagram bruts (import CSV) |
 | `post_media` | Fichiers média individuels — images/vidéos, URLs GCS (import CSV) |
-| `categories` | Lookup — 15 catégories éditoriales |
-| `visual_formats` | Lookup — 44 formats visuels |
+| `categories` | Lookup — 15 catégories éditoriales (+ description) |
+| `visual_formats` | Lookup — 44 formats visuels (+ description) |
+| `strategies` | Lookup — 2 stratégies (Organic, Brand Content) (+ description) |
 | `heuristic_labels` | Catégorisation v0 — heuristique imprécise (import CSV) |
 | `sample_posts` | Échantillon 2000 posts + split dev/test + ordre de présentation |
 | `annotations` | Annotations humaines (corrections/validations) |
@@ -21,6 +22,10 @@ Fichiers :
 | `api_calls` | Traçabilité complète des appels API (tokens, coût, latence) |
 | `simulation_runs` | Runs de simulation (Phase D) avec config, résultats, coûts |
 | `prompt_metrics` | Vue — accuracy agrégée par version de prompt × agent × simulation |
+
+## Descriptions taxonomie
+
+Les trois tables de lookup (`visual_formats`, `categories`, `strategies`) ont une colonne `description TEXT` pour stocker la description visuelle/éditoriale rédigée par l'humain. Ces descriptions sont éditables via l'interface `/taxonomy` et seront injectées dans le prompt du classificateur (Phase 2).
 
 ## Reproductibilité
 

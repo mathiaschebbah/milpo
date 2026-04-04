@@ -1,6 +1,6 @@
 # HILPO — Human-In-the-Loop Prompt Optimization
 
-> Version **2.5** — 2026-04-04
+> Version **2.6** — 2026-04-04
 
 ## Double dimension du projet
 
@@ -44,6 +44,7 @@ hilpo/                 ← repo root
 
 | Version | Date | Changements |
 |---------|------|-------------|
+| 2.6 | 2026-04-04 | CRUD taxonomie : descriptions pour formats visuels, catégories, stratégies, page /taxonomy |
 | 2.5 | 2026-04-04 | Cadrage recherche : hypothèses H1/H2, état de l'art, formalisation, tiers éval, planning révisé |
 | 2.4 | 2026-04-04 | Guard MediaViewer undefined, test E2E validé (22 annotations) |
 | 2.3 | 2026-04-04 | Phase 1 terminée — BIGINT string, proxy Vite, skip multi-exclude, vidéo player |

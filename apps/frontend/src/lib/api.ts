@@ -136,6 +136,30 @@ export async function fetchPostGrid(params: {
   return requestJson<PostGridResponse>(`/posts/?${qs}`)
 }
 
+// --- Taxonomy ---
+
+export type TaxonomyItem = {
+  id: number
+  name: string
+  description: string | null
+}
+
+export async function fetchTaxonomy(axis: 'visual-formats' | 'categories' | 'strategies'): Promise<TaxonomyItem[]> {
+  return requestJson<TaxonomyItem[]>(`/taxonomy/${axis}`)
+}
+
+export async function updateTaxonomyDescription(
+  axis: 'visual-formats' | 'categories' | 'strategies',
+  itemId: number,
+  description: string | null,
+): Promise<TaxonomyItem> {
+  return requestJson<TaxonomyItem>(`/taxonomy/${axis}/${itemId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ description }),
+  })
+}
+
 export async function submitAnnotation(data: {
   ig_media_id: string
   category_id: number
