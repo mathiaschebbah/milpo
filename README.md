@@ -18,6 +18,8 @@ L'hypothèse est que cette boucle d'optimisation permet d'atteindre une performa
 
 Ce projet est également une expérimentation de collaboration entre un agent IA (Claude Code) et un humain pour un travail de recherche. L'intégralité du développement — de la conception architecturale à l'implémentation — est réalisée en binôme agent-humain, avec des mécanismes d'interaction structurés (hooks, validations humaines, versionnement de la documentation). La progression est traçable dans l'historique git.
 
+Les mécanismes d'interaction sont définis dans [`.claude/hooks/`](.claude/hooks/) et documentés dans [`docs/conventions.md`](docs/conventions.md).
+
 ## Licence
 
 Ce dépôt est publié à des fins académiques.
