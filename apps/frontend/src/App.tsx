@@ -130,7 +130,7 @@ function App() {
 
                   {current.post.caption && (
                     <div className="bg-white rounded-lg border border-neutral-200 p-4">
-                      <p className="text-sm leading-relaxed text-neutral-600 whitespace-pre-line line-clamp-6 max-w-prose">
+                      <p className="text-sm leading-relaxed text-neutral-600 whitespace-pre-line text-justify">
                         {current.post.caption}
                       </p>
                     </div>
