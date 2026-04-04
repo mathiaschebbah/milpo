@@ -1,6 +1,6 @@
 # HILPO — Human-In-the-Loop Prompt Optimization
 
-> Version **2.7** — 2026-04-04
+> Version **2.8** — 2026-04-05
 
 ## Double dimension du projet
 
@@ -45,6 +45,7 @@ hilpo/                 ← repo root
 
 | Version | Date | Changements |
 |---------|------|-------------|
+| 2.8 | 2026-04-05 | Filtrage formats par scope dans le sélecteur, fix crash MediaViewer, ajout reel_chiffre |
 | 2.7 | 2026-04-04 | Routage déterministe, taxonomie 59 formats (42 post + 10 reel + 7 story), UI tabs, Y_k^m et Δ^m scopés |
 | 2.6 | 2026-04-04 | CRUD taxonomie : descriptions pour formats visuels, catégories, stratégies, page /taxonomy |
 | 2.5 | 2026-04-04 | Cadrage recherche : hypothèses H1/H2, état de l'art, formalisation, tiers éval, planning révisé |
