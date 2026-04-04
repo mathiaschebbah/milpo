@@ -11,8 +11,8 @@ def main():
     tool_input = input_data.get("tool_input", {})
     command = tool_input.get("command", "")
 
-    # Ne s'active que sur git commit
-    if tool_name != "Bash" or "git commit" not in command:
+    # Ne s'active que sur git commit (gère git -C /path commit)
+    if tool_name != "Bash" or not ("git" in command and "commit" in command):
         print(json.dumps({}))
         return
 
@@ -37,7 +37,14 @@ Utilise AskUserQuestion (multiSelect: true) pour présenter les changements dét
 
 **Si "Rien à mettre à jour"** : commiter normalement."""
 
-    print(json.dumps({"decision": "block", "reason": message}))
+    result = {
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": message,
+        }
+    }
+    print(json.dumps(result))
 
 
 if __name__ == "__main__":
