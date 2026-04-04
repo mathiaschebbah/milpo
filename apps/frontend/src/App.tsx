@@ -11,7 +11,7 @@ type View = 'annotate' | 'grid' | 'taxonomy'
 
 function App() {
   const [view, setView] = useState<View>('annotate')
-  const { current, done, progress, categories, visualFormats, loading, submit, skip } = useAnnotation()
+  const { current, done, progress, categories, visualFormats, loading, submit, skip, updateVisualFormat } = useAnnotation()
 
   const pct = progress.total > 0 ? (progress.annotated / progress.total) * 100 : 0
 
@@ -144,6 +144,7 @@ function App() {
                     visualFormats={visualFormats}
                     onSubmit={submit}
                     onSkip={skip}
+                    onFormatUpdated={updateVisualFormat}
                   />
                 </div>
               </div>

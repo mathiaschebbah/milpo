@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { fetchNextPost, fetchProgress, fetchCategories, fetchVisualFormats, submitAnnotation } from '@/lib/api'
+import { fetchNextPost, fetchProgress, fetchCategories, fetchTaxonomy, submitAnnotation, type TaxonomyItem } from '@/lib/api'
 
 type Lookup = { id: number; name: string }
 
@@ -41,7 +41,7 @@ export function useAnnotation() {
   const [done, setDone] = useState(false)
   const [progress, setProgress] = useState({ total: 0, annotated: 0 })
   const [categories, setCategories] = useState<Lookup[]>([])
-  const [visualFormats, setVisualFormats] = useState<Lookup[]>([])
+  const [visualFormats, setVisualFormats] = useState<TaxonomyItem[]>([])
   const [skippedIds, setSkippedIds] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -75,7 +75,7 @@ export function useAnnotation() {
 
   // Charger les lookups d'abord, puis le premier post
   useEffect(() => {
-    Promise.all([fetchCategories(), fetchVisualFormats()]).then(([cats, vfs]) => {
+    Promise.all([fetchCategories(), fetchTaxonomy('visual-formats')]).then(([cats, vfs]) => {
       setCategories(cats)
       setVisualFormats(vfs)
       setReady(true)
@@ -111,5 +111,9 @@ export function useAnnotation() {
     await loadNext(nextSkippedIds)
   }, [current, skippedIds, loadNext])
 
-  return { current, done, progress, categories, visualFormats, loading: loading || !ready, submitting, submit, skip }
+  const updateVisualFormat = useCallback((updated: TaxonomyItem) => {
+    setVisualFormats(prev => prev.map(vf => vf.id === updated.id ? updated : vf))
+  }, [])
+
+  return { current, done, progress, categories, visualFormats, loading: loading || !ready, submitting, submit, skip, updateVisualFormat }
 }

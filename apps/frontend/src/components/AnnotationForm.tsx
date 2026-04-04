@@ -1,17 +1,92 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import type { PostData } from '@/hooks/useAnnotation'
+import { updateTaxonomyDescription, type TaxonomyItem } from '@/lib/api'
 
 type Lookup = { id: number; name: string }
 
 type Props = {
   data: PostData
   categories: Lookup[]
-  visualFormats: Lookup[]
+  visualFormats: TaxonomyItem[]
   onSubmit: (categoryId: number, visualFormatId: number, strategy: 'Organic' | 'Brand Content') => void
   onSkip: () => void
+  onFormatUpdated?: (updated: TaxonomyItem) => void
+}
+
+function FormatDescription({
+  item,
+  onSaved,
+}: {
+  item: TaxonomyItem
+  onSaved?: (updated: TaxonomyItem) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(item.description ?? '')
+  const [saving, setSaving] = useState(false)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    setValue(item.description ?? '')
+    setEditing(false)
+  }, [item.id, item.description])
+
+  useEffect(() => {
+    if (editing && textareaRef.current) {
+      textareaRef.current.focus()
+    }
+  }, [editing])
+
+  const save = useCallback(async () => {
+    const trimmed = value.trim()
+    const newDesc = trimmed || null
+    if (newDesc === item.description) {
+      setEditing(false)
+      return
+    }
+    setSaving(true)
+    try {
+      const updated = await updateTaxonomyDescription('visual-formats', item.id, newDesc)
+      onSaved?.(updated)
+    } finally {
+      setSaving(false)
+      setEditing(false)
+    }
+  }, [value, item, onSaved])
+
+  if (editing) {
+    return (
+      <textarea
+        ref={textareaRef}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); save() }
+          if (e.key === 'Escape') { setValue(item.description ?? ''); setEditing(false) }
+        }}
+        disabled={saving}
+        rows={3}
+        className="w-full text-xs text-neutral-600 bg-neutral-50 border border-neutral-200 rounded px-2.5 py-2 resize-y focus:outline-none focus:ring-1 focus:ring-neutral-400 disabled:opacity-50"
+        placeholder="Décris ce que l'on voit visuellement..."
+      />
+    )
+  }
+
+  return (
+    <button
+      onClick={() => setEditing(true)}
+      className="w-full text-left px-2.5 py-2 rounded bg-neutral-50 border border-neutral-100 hover:border-neutral-200 transition-colors"
+    >
+      {item.description ? (
+        <p className="text-xs leading-relaxed text-neutral-500">{item.description}</p>
+      ) : (
+        <p className="text-xs text-neutral-300 italic">Ajouter une description...</p>
+      )}
+    </button>
+  )
 }
 
 const FORMAT_PREFIX: Record<string, string> = {
@@ -20,7 +95,7 @@ const FORMAT_PREFIX: Record<string, string> = {
   STORY: 'story_',
 }
 
-export function AnnotationForm({ data, categories, visualFormats, onSubmit, onSkip }: Props) {
+export function AnnotationForm({ data, categories, visualFormats, onSubmit, onSkip, onFormatUpdated }: Props) {
   const { heuristic } = data
 
   const filteredFormats = useMemo(() => {
@@ -58,8 +133,9 @@ export function AnnotationForm({ data, categories, visualFormats, onSubmit, onSk
   }, [canSubmit, handleSubmit, onSkip])
 
   const categoryName = categories.find(c => c.id === categoryId)?.name
-  const formatName = filteredFormats.find(vf => vf.id === visualFormatId)?.name
-    ?? visualFormats.find(vf => vf.id === visualFormatId)?.name
+  const selectedFormat = filteredFormats.find(vf => vf.id === visualFormatId)
+    ?? visualFormats.find(vf => vf.id === visualFormatId)
+  const formatName = selectedFormat?.name
   const categoryChanged = categoryId !== heuristic.category_id
   const formatChanged = visualFormatId !== heuristic.visual_format_id
   const strategyChanged = strategy !== heuristic.heuristic_strategy
@@ -131,6 +207,12 @@ export function AnnotationForm({ data, categories, visualFormats, onSubmit, onSk
               ))}
             </SelectContent>
           </Select>
+          {selectedFormat && (
+            <FormatDescription
+              item={selectedFormat}
+              onSaved={onFormatUpdated}
+            />
+          )}
         </div>
 
         <div className="space-y-1.5">
