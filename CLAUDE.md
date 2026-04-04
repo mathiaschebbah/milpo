@@ -1,6 +1,6 @@
 # HILPO — Human-In-the-Loop Prompt Optimization
 
-> Version **1.2** — 2026-04-04
+> Version **1.3** — 2026-04-04
 
 ## Double dimension du projet
 
@@ -18,15 +18,31 @@
 - [Evaluation](docs/evaluation.md) — protocole experimental, metriques, baselines, ablations
 - [Conventions](docs/conventions.md) — règles de collaboration et standards
 
+## Monorepo
+
+```
+hilpo/                 ← repo root
+├── hilpo/             ← package Python (engine HILPO)
+├── apps/
+│   ├── frontend/      ← React (interface de swipe)
+│   └── backend/       ← FastAPI (API)
+├── scripts/           ← Import CSV, simulations, figures
+├── docs/              ← Documentation versionnée
+├── data/              ← Données brutes (gitignored)
+├── CLAUDE.md          ← Index versionné
+└── README.md
+```
+
 ## Repo
 
 - **GitHub** : [mathiaschebbah/hilpo](https://github.com/mathiaschebbah/hilpo) (open-source)
-- **README.md** : présentation académique du projet (français)
+- **Auteur** : Mathias Chebbah, M1 MIAGE, Université Paris Dauphine
 
 ## Changelog
 
 | Version | Date | Changements |
 |---------|------|-------------|
+| 1.3 | 2026-04-04 | Structure monorepo (hilpo/, apps/, scripts/), auteur M1 MIAGE Dauphine |
 | 1.2 | 2026-04-04 | Double dimension du projet : recherche HILPO + collaboration Agent-Humain |
 | 1.1 | 2026-04-04 | Ajout README, conventions (AskUserQuestion + accents FR), repo GitHub open-source |
 | 1.0 | 2026-04-04 | Création initiale — structure du projet posée à partir du document HILPO |
