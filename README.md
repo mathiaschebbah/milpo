@@ -20,6 +20,10 @@ Ce projet est également une expérimentation de collaboration entre un agent IA
 
 Les mécanismes d'interaction sont définis dans [`.claude/hooks/`](.claude/hooks/) et documentés dans [`docs/conventions.md`](docs/conventions.md).
 
+## Reproduction
+
+Voir [`REPRODUCE.md`](REPRODUCE.md) pour le guide complet de reproduction des résultats (prérequis, données, installation, exécution des expériences).
+
 ## Licence
 
 Ce dépôt est publié à des fins académiques.

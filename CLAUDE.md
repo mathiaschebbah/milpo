@@ -17,6 +17,7 @@
 - [Donnees](docs/data.md) — structure des CSV, axes de classification, taxonomie
 - [Phases](docs/phases.md) — phases de dev et avancement
 - [Evaluation](docs/evaluation.md) — protocole, metriques, tiers de priorite, checklist recevabilite
+- [Reproduire](REPRODUCE.md) — guide de reproduction des résultats (jury/reviewers)
 - [Conventions](docs/conventions.md) — règles de collaboration et standards
 - [Planning](docs/planning.md) — calendrier jour par jour avec creneaux, 5-18 avril 2026
 
