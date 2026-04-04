@@ -7,4 +7,4 @@
 
 ## Hooks d'interaction
 
-- **Hook Stop natif** ([`.claude/hooks/check-claude-md.py`](../.claude/hooks/check-claude-md.py)) : à chaque fin de tâche, l'agent analyse les changements, propose une mise à jour de CLAUDE.md via AskUserQuestion, et commite si l'humain valide. Hook natif Claude Code (pas hookify — cf. bug cascade PreToolUse).
+- **Hook PreToolUse sur git commit** ([`.claude/hooks/check-claude-md.py`](../.claude/hooks/check-claude-md.py)) : avant chaque `git commit`, l'agent analyse les changements, propose une mise à jour de CLAUDE.md via AskUserQuestion, et inclut les docs dans le commit si l'humain valide. Les commits `docs: update CLAUDE.md` passent sans blocage (évite la boucle infinie).
