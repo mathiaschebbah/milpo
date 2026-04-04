@@ -13,7 +13,7 @@ L'optimisation iterative d'un prompt par confrontation avec un annotateur humain
 
 ## Contraintes
 
-- **Deadline** : 11 mai 2026
+- **Deadline** : 18 avril 2026
 - **Livrable** : rapport de memoire + code fonctionnel
 - **Budget API** : finance par Views
 - **Etat au 4 avril 2026** : zero code, donnees en cours de depot

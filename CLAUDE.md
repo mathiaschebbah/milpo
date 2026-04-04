@@ -17,6 +17,7 @@
 - [Phases](docs/phases.md) — phases de dev et avancement
 - [Evaluation](docs/evaluation.md) — protocole experimental, metriques, baselines, ablations
 - [Conventions](docs/conventions.md) — règles de collaboration et standards
+- [Planning](docs/planning.md) — calendrier jour par jour, 5-18 avril 2026
 
 ## Monorepo
 
