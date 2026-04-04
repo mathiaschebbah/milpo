@@ -16,17 +16,34 @@ Post → Router → détecte le type (FEED/REELS/STORY)
 
 ### Agents
 
-1. **Router** : détecte le type de post et dispatch vers les agents scopés
+1. **Router** : routage **déterministe** basé sur `media_product_type` (métadonnée structurée Instagram, pas de LLM). Chaque post est dispatché vers le scope correspondant (FEED/REELS/STORY), ce qui filtre l'espace des labels.
 2. **Agent catégorie** : classifie parmi les 15 catégories éditoriales
-3. **Agent visual_format** : classifie parmi les 44 formats visuels
+3. **Agent visual_format** : classifie parmi le sous-ensemble de formats visuels **scopé par type** :
+   - FEED → `post_*` (42 formats)
+   - REELS → `reel_*` (10 formats)
+   - STORY → `story_*` (7 formats)
 4. **Agent stratégie** : détermine Organic vs Brand Content
+
+### Routage et réduction de l'espace de labels
+
+Le routage déterministe réduit drastiquement l'espace de classification pour `visual_format` :
+
+| Scope | Formats possibles | Réduction |
+|-------|------------------|-----------|
+| FEED | 42 formats `post_*` | — |
+| REELS | 10 formats `reel_*` | ÷4 |
+| STORY | 7 formats `story_*` | ÷6 |
+
+Chaque prompt scopé `(I_t^(k,m), Δ^m)` ne contient que les descriptions des formats pertinents pour le type `m`. Le contexte fourni à l'agent inclut : `media_product_type`, `media_type` (IMAGE/CAROUSEL_ALBUM/VIDEO), nombre de slides, et la caption.
+
+**Note historique** : l'heuristique v0 n'utilisait pas le `media_product_type` pour router, ce qui a produit ~2 800 erreurs de préfixe (ex : REELS labellés `post_news` au lieu de `reel_news`). Le routage déterministe élimine cette classe d'erreurs.
 
 ### Prompts scopés
 
 Chaque agent a un prompt par type de post. Ex : `agent_categorie × REELS` a son propre prompt, optimisé indépendamment de `agent_categorie × FEED`. Cela permet :
 - D'adapter les instructions au média (vidéo vs image)
 - D'optimiser chaque prompt sur son sous-ensemble de données
-- D'utiliser Qwen 3.5 en mode vidéo pour les Reels
+- De réduire l'espace de labels (le modèle choisit parmi moins de classes)
 
 ### Flux d'annotation (Phase 1-2)
 
@@ -49,10 +66,10 @@ Chaque agent a un prompt par type de post. Ex : `agent_categorie × REELS` a son
 ### Notation
 
 - **D** = {(x_i, m_i)} pour i=1..N : ensemble de posts, où x_i = (image_i, caption_i) est l'entrée multimodale et m_i ∈ {FEED, REELS, STORY} le type
-- **Y_k** : espace des labels pour l'axe k ∈ {catégorie, visual_format, stratégie}
-- **Δ** : descriptions taxonomiques (rédigées par l'humain, fixes). Définitions métier des labels injectées telles quelles dans le prompt.
+- **Y_k^m** : espace des labels pour l'axe k ∈ {catégorie, visual_format, stratégie}, scopé par le type m. Pour visual_format : Y_vf^FEED = {post_*}, Y_vf^REELS = {reel_*}, Y_vf^STORY = {story_*}. Pour catégorie et stratégie : identique quel que soit m.
+- **Δ^m** : descriptions taxonomiques scopées par type m (rédigées par l'humain, fixes). Pour visual_format, seules les descriptions des formats du scope m sont injectées dans le prompt.
 - **I_t^(k,m)** : instructions actives à l'itération t pour l'agent k scopé au type m. C'est la partie optimisée par HILPO.
-- **p_t = (I_t, Δ)** : prompt complet = instructions + descriptions. Seul I_t change au fil des itérations.
+- **p_t = (I_t, Δ^m)** : prompt complet = instructions + descriptions scopées. Seul I_t change au fil des itérations.
 - **f_θ(x, p)** : modèle de vision-langage (paramètres θ fixés), prompt p
 - **h(x_i) ∈ Y_k** : annotation humaine pour le post x_i
 

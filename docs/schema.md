@@ -11,7 +11,7 @@ Fichiers :
 | `posts` | Posts Instagram bruts (import CSV) |
 | `post_media` | Fichiers média individuels — images/vidéos, URLs GCS (import CSV) |
 | `categories` | Lookup — 15 catégories éditoriales (+ description) |
-| `visual_formats` | Lookup — 44 formats visuels (+ description) |
+| `visual_formats` | Lookup — 59 formats visuels (42 post + 10 reel + 7 story) (+ description) |
 | `strategies` | Lookup — 2 stratégies (Organic, Brand Content) (+ description) |
 | `heuristic_labels` | Catégorisation v0 — heuristique imprécise (import CSV) |
 | `sample_posts` | Échantillon 2000 posts + split dev/test + ordre de présentation |
