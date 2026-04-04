@@ -1,32 +1,44 @@
 #!/usr/bin/env python3
-"""Stop hook — rappelle à l'agent de vérifier CLAUDE.md avant de terminer."""
+"""PreToolUse hook — vérifie si CLAUDE.md doit être mis à jour avant un git commit."""
 
 import json
 import sys
 
-def main():
-    message = """Avant de terminer, tu DOIS maintenir la documentation du projet.
 
-**Étape 1 — Analyse automatique :**
-Revois ce qui a été fait pendant cette session (fichiers créés/modifiés, décisions prises, stack changée, schéma évolué, phase avancée, conventions établies, données ajoutées).
+def main():
+    input_data = json.load(sys.stdin)
+    tool_name = input_data.get("tool_name", "")
+    tool_input = input_data.get("tool_input", {})
+    command = tool_input.get("command", "")
+
+    # Ne s'active que sur git commit
+    if tool_name != "Bash" or "git commit" not in command:
+        print(json.dumps({}))
+        return
+
+    # Si c'est déjà un commit docs: update CLAUDE.md, laisser passer
+    if "docs: update CLAUDE.md" in command:
+        print(json.dumps({}))
+        return
+
+    message = """**Avant de commiter, vérifie si CLAUDE.md doit être mis à jour.**
+
+**Étape 1 — Analyse :**
+Revois ce qui a été fait (fichiers créés/modifiés, décisions prises, stack changée, schéma évolué, phase avancée).
 
 **Étape 2 — Confirmation humaine :**
-Utilise AskUserQuestion (multiSelect: true) pour présenter les changements détectés. Les options doivent décrire concrètement ce qui a changé (ex: "Stack: modèle confirmé → Qwen 3.5", "Phase 1: statut → en cours"). Inclure toujours l'option "Rien à mettre à jour".
+Utilise AskUserQuestion (multiSelect: true) pour présenter les changements détectés. Inclure toujours "Rien à mettre à jour".
 
-**Étape 3 — Si l'utilisateur confirme des changements :**
-1. Mettre à jour les fichiers concernés dans `docs/`
-2. Incrémenter la version dans `CLAUDE.md` (patch: 1.0 → 1.1 pour ajouts, minor: 1.1 → 2.0 pour changements structurels)
-3. Ajouter une ligne au changelog dans `CLAUDE.md`
-4. Git commit avec message : `docs: update CLAUDE.md v{version} — {résumé des changements}`
+**Étape 3 — Si changements confirmés :**
+1. Mettre à jour les fichiers dans `docs/`
+2. Incrémenter la version dans `CLAUDE.md`
+3. Ajouter une ligne au changelog
+4. Inclure CLAUDE.md + docs/ dans CE commit (git add avant de commiter)
 
-**Si "Rien à mettre à jour"** : ne rien faire, terminer normalement."""
+**Si "Rien à mettre à jour"** : commiter normalement."""
 
-    result = {
-        "decision": "block",
-        "reason": message
-    }
+    print(json.dumps({"decision": "block", "reason": message}))
 
-    print(json.dumps(result))
 
 if __name__ == "__main__":
     main()
