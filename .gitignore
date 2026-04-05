@@ -15,7 +15,7 @@ venv/
 node_modules/
 dist/
 build/
-.env
+*.env
 .env.local
 
 # IDE
@@ -25,3 +25,4 @@ build/
 # Claude Code
 .claude/*.local.*
 !.claude/hooks/
+*.playwright-mcp/
