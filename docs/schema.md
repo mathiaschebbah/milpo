@@ -15,7 +15,7 @@ Fichiers :
 | `strategies` | Lookup — 2 stratégies (Organic, Brand Content) (+ description) |
 | `heuristic_labels` | Catégorisation v0 — heuristique imprécise (import CSV) |
 | `sample_posts` | Échantillon 2000 posts + split dev/test + ordre de présentation |
-| `annotations` | Annotations humaines (corrections/validations) |
+| `annotations` | Annotations humaines (corrections/validations, flag `doubtful` pour re-review) |
 | `prompt_versions` | Prompts versionnés **par agent × scope** (type de post) |
 | `predictions` | Prédictions par agent + match auto-calculé par trigger |
 | `rewrite_logs` | Historique des réécritures de prompt (avant/après, raisonnement) |
