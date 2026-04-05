@@ -7,7 +7,9 @@
 - Annotation humaine seule, pas d'IA
 - Produit la vérité terrain
 - Page taxonomie : CRUD descriptions pour les 3 axes (formats visuels, catégories, stratégies)
-- **Statut** : ✅ terminée — test E2E validé (annotation, skip, vidéo player, taxonomie)
+- Flag "pas sûr" (touche d) + re-annotation depuis la grille
+- Badges dev/test, filtre split, ordre test-first
+- **Statut** : ✅ terminée — test E2E validé. Annotation en cours : 257/2000 (153 test, 35 doubtful)
 
 ## Phase 2 — Classificateur baseline
 - Intégration API modèle vision
