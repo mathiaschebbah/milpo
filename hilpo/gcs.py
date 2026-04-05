@@ -1,8 +1,9 @@
-"""Signature d'URLs GCS pour le package hilpo (sync)."""
+"""Signature d'URLs GCS pour le package hilpo."""
 
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from typing import Any, cast
 from urllib.parse import urlparse
@@ -85,4 +86,60 @@ def sign_media_urls(media: list[dict]) -> list[tuple[str, str]]:
         signed = sign_url(raw_url)
         if signed:
             result.append((signed, media_type))
+    return result
+
+
+def sign_all_posts_media(
+    posts: list[dict],
+    load_post_media_fn,
+    conn,
+    max_workers: int = 20,
+) -> dict[int, list[tuple[str, str]]]:
+    """Signe les URLs de tous les posts en parallèle (threads).
+
+    Returns:
+        {ig_media_id: [(signed_url, media_type), ...]}.
+    """
+    # 1. Charger tous les médias
+    all_media: dict[int, list[dict]] = {}
+    for post in posts:
+        mid = post["ig_media_id"]
+        all_media[mid] = load_post_media_fn(conn, mid)
+
+    # 2. Collecter toutes les URLs uniques à signer
+    url_to_sign: dict[str, None] = {}  # ordered set
+    media_index: list[tuple[int, str, str]] = []  # (ig_media_id, raw_url, media_type)
+
+    for mid, media_list in all_media.items():
+        for m in media_list:
+            raw_url = m.get("media_url") or m.get("thumbnail_url")
+            media_type = m.get("media_type", "IMAGE")
+            if raw_url:
+                url_to_sign[raw_url] = None
+                media_index.append((mid, raw_url, media_type))
+
+    unique_urls = list(url_to_sign.keys())
+    logger.info("Signature de %d URLs uniques (%d threads)...", len(unique_urls), max_workers)
+
+    # 3. Signer en parallèle
+    # Init credentials avant le pool (pas thread-safe)
+    _ensure_credentials()
+    _get_storage_client()
+
+    signed_map: dict[str, str] = {}
+
+    def _sign_one(url: str) -> tuple[str, str | None]:
+        return url, sign_url(url)
+
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        for original, signed in pool.map(lambda u: _sign_one(u), unique_urls):
+            if signed:
+                signed_map[original] = signed
+
+    # 4. Assembler les résultats par post
+    result: dict[int, list[tuple[str, str]]] = {}
+    for mid, raw_url, media_type in media_index:
+        if raw_url in signed_map:
+            result.setdefault(mid, []).append((signed_map[raw_url], media_type))
+
     return result

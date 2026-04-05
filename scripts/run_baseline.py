@@ -29,7 +29,7 @@ from hilpo.db import (
     store_api_call,
     store_prediction,
 )
-from hilpo.gcs import sign_media_urls
+from hilpo.gcs import sign_all_posts_media
 from hilpo.inference import PostInput, PromptSet
 from hilpo.prompts_v0 import PROMPTS_V0
 
@@ -219,19 +219,20 @@ async def main():
     })
     log.info("simulation_run id=%d", run_id)
 
-    # 3. Signature URLs GCS
+    # 3. Signature URLs GCS (parallèle, 20 threads)
     log.info("Signature des URLs GCS...")
+    signed_by_post = sign_all_posts_media(raw_posts, load_post_media, conn, max_workers=20)
+
     post_inputs: list[PostInput] = []
     skipped = 0
-
     for post in raw_posts:
-        media = load_post_media(conn, post["ig_media_id"])
-        signed = sign_media_urls(media)
+        mid = post["ig_media_id"]
+        signed = signed_by_post.get(mid, [])
         if not signed:
             skipped += 1
             continue
         post_inputs.append(PostInput(
-            ig_media_id=post["ig_media_id"],
+            ig_media_id=mid,
             media_product_type=post["media_product_type"],
             media_urls=[u for u, _ in signed],
             media_types=[m for _, m in signed],
