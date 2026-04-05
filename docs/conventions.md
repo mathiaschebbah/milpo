@@ -26,6 +26,9 @@
 
 - **`/setup`** ([`.claude/skills/setup/SKILL.md`](../.claude/skills/setup/SKILL.md)) : initialise le contexte en début de session — lit CLAUDE.md, phases, git log, vérifie les services, présente un résumé.
 
-## Hooks d'interaction
+## Hooks PostToolUse
 
-- **Hook PreToolUse sur git commit** ([`.claude/hooks/check-claude-md.py`](../.claude/hooks/check-claude-md.py)) : avant chaque `git commit`, l'agent analyse les changements, propose une mise à jour de CLAUDE.md via AskUserQuestion, et inclut les docs dans le commit si l'humain valide. Les commits `docs: update CLAUDE.md` passent sans blocage (évite la boucle infinie).
+Les hooks sont **non bloquants** (PostToolUse) : ils envoient un rappel à l'agent après le commit, sans bloquer l'action.
+
+- **`check-claude-md.py`** : après chaque `git commit`, rappelle à l'agent de vérifier si CLAUDE.md et les fichiers `docs/` doivent être mis à jour. L'agent propose via AskUserQuestion, puis fait un commit séparé `docs: update CLAUDE.md` si l'humain valide.
+- **`agent-perspective.py`** : tous les 10 commits, rappelle à l'agent de mettre à jour `docs/agent_perspective.md` avec un snapshot daté de son état de compréhension du projet (décisions récentes, dynamiques de collaboration). Sert la dimension 2 du mémoire (collaboration humain-agent).
