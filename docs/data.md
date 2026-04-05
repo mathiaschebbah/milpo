@@ -2,7 +2,7 @@
 
 ## Source
 
-21 425 posts Instagram en BDD (21 065 @viewsfrance + 360 @miramagazine). Les CSV source contiennent ~114 000 posts multi-comptes ; seuls les posts importés en BDD sont utilisés. L'échantillon de 2 000 posts est filtré sur **@viewsfrance uniquement** (ig_user_id = 17841403755827826).
+21 425 posts Instagram en BDD (21 065 @viewsfrance + 360 @miramagazine). L'échantillon de 2 000 posts est filtré sur **@viewsfrance uniquement** (ig_user_id = 17841403755827826).
 
 ## Fichiers (dans data/, gitignored)
 
