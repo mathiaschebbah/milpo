@@ -176,6 +176,8 @@ hilpo/              ← package Python : moteur HILPO
 ├── agent.py        ← descripteur multimodal + classifieurs tool use
 ├── inference.py    ← pipeline : router → descripteur → 3 classifieurs → stockage
 ├── db.py           ← accès BDD (taxonomie, posts, prompts, prédictions, api_calls)
+├── gcs.py          ← signature URLs GCS (V4 Signed URLs, IAM Sign Blob)
+├── prompts_v0.py   ← prompts initiaux (6 instructions v0)
 └── eval.py         ← métriques (F1, kappa, confusion) — à implémenter
 
 apps/backend/       ← FastAPI : couche HTTP pour l'interface d'annotation

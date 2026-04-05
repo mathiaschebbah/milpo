@@ -21,7 +21,7 @@
 - Le modèle prédit en parallèle de l'humain **sur le split dev**
 - L'humain annote les posts dev au fil de l'eau — chaque annotation est comparée à la prédiction du modèle
 - Mesure du taux d'accord → baseline
-- **Statut** : squelette implémenté (hilpo/ : config, client, router, schemas, agent, inference, db). Reste : prompts v0, test E2E, intégration live.
+- **Statut** : pipeline E2E fonctionnel (3/3 match sur premier test). 6 prompts v0 en BDD. Reste : batch async sur dev set, intégration live avec l'annotation.
 
 ## Phase 3 — Rewriter agentique
 - Agent rewriter qui propose de nouvelles versions du prompt

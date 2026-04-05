@@ -1,6 +1,6 @@
 # HILPO — Human-In-the-Loop Prompt Optimization
 
-> Version **2.18** — 2026-04-05
+> Version **2.19** — 2026-04-05
 
 ## Double dimension du projet
 
@@ -46,6 +46,7 @@ hilpo/                 ← repo root
 
 | Version | Date | Changements |
 |---------|------|-------------|
+| 2.19 | 2026-04-05 | Pipeline E2E fonctionnel (3/3 match), prompts v0 en BDD, GCS signing, google-cloud-storage dans pyproject |
 | 2.18 | 2026-04-05 | Squelette hilpo/ implémenté (7 modules), migration 003 descriptor, pyproject.toml racine, docs corrigés |
 | 2.17 | 2026-04-05 | Architecture Phase 2 : descripteur multimodal (Qwen 3.5 Flash FEED / Gemini 2.5 Flash REELS) + 3 classifieurs text-only, schema features JSON, 6 prompts optimisables, setup skill chargé conventions |
 | 2.16 | 2026-04-06 | Travail taxonomie : 3 fusions, 6 formats ajoutés, 68/68 décrits, critères discriminants, analyse temporelle captions |
