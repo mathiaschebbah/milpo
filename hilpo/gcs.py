@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 import logging
-import os
 from datetime import timedelta
 from typing import Any, cast
 from urllib.parse import urlparse
 
+from hilpo.config import GCS_SIGNING_SA_EMAIL
+
 logger = logging.getLogger(__name__)
 
 GCS_HOST = "storage.googleapis.com"
-GCS_SIGNING_SA_EMAIL = os.environ.get("HILPO_GCS_SIGNING_SA_EMAIL", "")
 
 _credentials: Any = None
 _auth_request: Any = None
