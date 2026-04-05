@@ -13,11 +13,8 @@ Au lancement de cette commande, exécute les étapes suivantes pour te mettre à
 Lis les fichiers suivants (en parallèle) :
 
 1. `CLAUDE.md` — index versionné + changelog
-2. `docs/phases.md` — statut des phases de développement
-3. `docs/stack.md` — technologies utilisées
-4. `docs/architecture.md` — pipeline multi-agents
-5. `docs/conventions.md` — règles de collaboration humain-agent (AskUserQuestion, accents FR, etc.)
-6. `docs/evaluation.md` — protocole expérimental, métriques, tiers de priorité
+2. Tous les fichiers du dossier docs/
+3. Analyse le codebase entièrement avec 5 sub-agents pour résumer là ou on en est.
 
 ## Étape 2 — Historique git récent
 
