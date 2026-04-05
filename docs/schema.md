@@ -45,7 +45,7 @@ Trigger `trg_prediction_match` : à chaque INSERT/UPDATE sur `predictions`, comp
 Chaque agent a ses propres prompts, versionnés indépendamment et scopés par type de post :
 
 ```
-prompt_versions.agent  = router | category | visual_format | strategy
+prompt_versions.agent  = descriptor | category | visual_format | strategy
 prompt_versions.scope  = FEED | REELS | STORY | NULL (tous types)
 ```
 

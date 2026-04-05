@@ -34,4 +34,4 @@ FastAPI, SQLAlchemy (async), asyncpg, pydantic-settings, uvicorn, alembic, googl
 
 ## Dépendances package hilpo/ (pyproject.toml racine)
 
-openai (SDK compatible OpenRouter), pydantic, psycopg[binary], google-cloud-storage, google-auth. Optionnel (eval) : scikit-learn, numpy.
+openai (SDK compatible OpenRouter), pydantic, psycopg[binary], google-cloud-storage, google-auth, python-dotenv. Optionnel (eval) : scikit-learn, numpy.

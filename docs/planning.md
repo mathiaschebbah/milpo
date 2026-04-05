@@ -20,7 +20,7 @@
 - ~~Pipeline E2E fonctionnel~~ ✅ (3/3 match premier test)
 - ~~6 prompts v0 en BDD~~ ✅
 - ~~Script baseline B0 async~~ ✅
-- B0 sur 437 posts test — en cours
+- ~~B0 sur 437 posts test~~ ✅ (87.3% / 64.3% / 93.5%, $1.14)
 
 ### Lun 6 — Phase 3 : rewriter + boucle HILPO + annotation live
 | Créneau | Activité |
