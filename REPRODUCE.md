@@ -121,7 +121,7 @@ uv run python scripts/run_baseline.py
 
 ### Phase 3 — Simulation HILPO
 
-Au 5 avril 2026, le protocole offline/prequential est documenté mais le script `scripts/run_simulation.py` n'est pas encore présent dans la repo. L'interface cible est la suivante :
+Le script `scripts/run_simulation.py` est implémenté et fonctionnel :
 
 ```bash
 uv run python scripts/run_simulation.py --batch-size 30
@@ -130,8 +130,6 @@ uv run python scripts/run_simulation.py --batch-size 30
 Rejoue les annotations dev dans l'ordre de présentation. Le prompt évolue via le rewriter (protocole prequential). Résultat stocké dans `simulation_runs`.
 
 ### Ablations
-
-Même remarque : ces commandes correspondent aux scripts cibles après implémentation de la Phase 3.
 
 ```bash
 uv run python scripts/run_simulation.py --batch-size 1
@@ -143,11 +141,11 @@ Même annotations, même ordre — seul le batch size change.
 
 ### Évaluation finale (BN)
 
-Le dépôt ne contient pas encore le wrapper CLI final pour réévaluer le prompt vN sur le test set. L'intention est de réutiliser le pipeline de `run_baseline.py` avec une version de prompt sélectionnée en entrée.
+Réutilise le pipeline de `run_baseline.py` avec le prompt vN (dernier prompt actif après simulation).
 
 ### Métriques et figures
 
-Au 5 avril 2026, `scripts/metrics.py` et `scripts/figures.py` sont prévus mais pas encore présents dans la repo. Les commandes cibles sont :
+Les commandes cibles pour les métriques et figures :
 
 ```bash
 uv run python scripts/metrics.py --output results/
@@ -198,8 +196,7 @@ hilpo/
     └── ...
 ```
 
-Scripts prévus après implémentation de la Phase 3 :
-- `scripts/run_simulation.py` — replay prequential + rewriter
+Scripts prévus :
 - `scripts/metrics.py` — calcul F1, kappa, McNemar
 - `scripts/figures.py` — génération des figures du mémoire
 

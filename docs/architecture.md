@@ -229,7 +229,8 @@ hilpo/              ← package Python : moteur HILPO
 ├── db.py           ← accès BDD (taxonomie, posts, prompts, prédictions, api_calls)
 ├── gcs.py          ← signature URLs GCS (V4 Signed URLs, IAM Sign Blob)
 ├── prompts_v0.py   ← prompts initiaux (6 instructions v0)
-└── eval.py         ← métriques (F1, kappa, confusion) — à implémenter
+├── rewriter.py     ← agent rewriter (ErrorCase, RewriteResult, appel LLM)
+└── eval.py         ← métriques (accuracy, rolling, F1 macro, confusion)
 
 apps/backend/       ← FastAPI : couche HTTP pour l'interface d'annotation
 ```

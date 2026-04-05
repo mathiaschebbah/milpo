@@ -30,4 +30,4 @@
 - Critère d'arrêt : convergence (variation < 2% sur 3 dernières itérations)
 - Ablations triviales : rejouer avec B=1, 10, 30, 50 sans ré-annoter
 - Contribution principale du mémoire
-- **Statut** : protocole fixé — implémentation du rewriter + de la simulation à faire
+- **Statut** : implémenté — rewriter.py + run_simulation.py fonctionnels, dry-run testé. En attente des annotations dev pour le run complet.

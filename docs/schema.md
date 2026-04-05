@@ -5,6 +5,7 @@ Fichiers :
 - [`002_experiment_infra.sql`](../apps/backend/migrations/002_experiment_infra.sql) — reproductibilité + simulations
 - [`003_taxonomy_descriptions.sql`](../apps/backend/migrations/003_taxonomy_descriptions.sql) — colonne description sur lookups + table strategies
 - [`003_descriptor_agent.sql`](../apps/backend/migrations/003_descriptor_agent.sql) — ajout `descriptor` à l'enum `agent_type`
+- [`004_rewrite_log_extensions.sql`](../apps/backend/migrations/004_rewrite_log_extensions.sql) — colonnes simulation tracking sur `rewrite_logs`
 
 ## Tables
 

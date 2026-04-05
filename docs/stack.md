@@ -8,7 +8,7 @@
 | Descripteur FEED | Qwen 3.5 Flash via OpenRouter (image + vidéo + texte) |
 | Descripteur REELS | Gemini 2.5 Flash via OpenRouter (image + vidéo + audio + texte) |
 | Classifieurs (×3) | Qwen 3.5 Flash via OpenRouter (texte seul) |
-| Rewriter (Phase 3) | À confirmer (modèle plus capable) |
+| Rewriter (Phase 3) | OpenAI GPT-5.4 via OpenRouter |
 | API unifiée | OpenRouter (`/api/v1/chat/completions`, compatible OpenAI SDK) |
 | Gestion des dépendances | uv |
 | Déploiement | Local (localhost) |
