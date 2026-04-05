@@ -207,17 +207,23 @@ def call_classifier(
         model=model,
         messages=messages,
         tools=[tool],
-        tool_choice={"type": "function", "function": {"name": f"classify_{axis}"}},
+        tool_choice="auto",
         temperature=0.1,
     )
     latency_ms = int((time.monotonic() - start) * 1000)
 
     # Extraire le tool call
     choice = response.choices[0]
-    tool_call = choice.message.tool_calls[0]
-    result = json.loads(tool_call.function.arguments)
-    label = result["label"]
-    confidence = result.get("confidence", "medium")
+    if choice.message.tool_calls:
+        tool_call = choice.message.tool_calls[0]
+        result = json.loads(tool_call.function.arguments)
+        label = result["label"]
+        confidence = result.get("confidence", "medium")
+    else:
+        # Fallback : le modèle a répondu en texte libre
+        raw_text = choice.message.content or ""
+        label = raw_text.strip().split("\n")[0].strip()
+        confidence = "low"
 
     usage = response.usage
     api_usage = {

@@ -104,15 +104,22 @@ def get_active_prompt(
     scope: str | None,
 ) -> dict | None:
     """Retourne le prompt actif pour un agent × scope."""
+    if scope is None:
+        return conn.execute(
+            """
+            SELECT id, agent, scope, version, content
+            FROM prompt_versions
+            WHERE agent = %s::agent_type AND scope IS NULL AND status = 'active'
+            """,
+            (agent,),
+        ).fetchone()
     return conn.execute(
         """
         SELECT id, agent, scope, version, content
         FROM prompt_versions
-        WHERE agent = %s
-          AND (scope = %s OR (scope IS NULL AND %s IS NULL))
-          AND status = 'active'
+        WHERE agent = %s::agent_type AND scope = %s::media_product_type AND status = 'active'
         """,
-        (agent, scope, scope),
+        (agent, scope),
     ).fetchone()
 
 
