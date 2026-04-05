@@ -31,10 +31,10 @@ L'interface d'annotation pré-remplira les catégories v0 — l'humain confirme 
 ## Axes de classification
 
 - **Format visuel** : 68 classes en BDD, scopées par `media_product_type` :
-  - `post_*` : 45 formats (FEED)
-  - `reel_*` : 15 formats (REELS)
+  - `post_*` : 44 formats (FEED)
+  - `reel_*` : 16 formats (REELS)
   - `story_*` : 8 formats (STORY)
-  - Note : le CSV d'origine contenait 45 formats (38 post + 7 reel). Les formats supplémentaires ont été ajoutés manuellement pendant l'annotation (ex: reel_throwback, post_views_magazine).
+  - Note : le CSV d'origine contenait 45 formats (38 post + 7 reel). Des formats ont été ajoutés (reel_throwback, post_views_magazine, reel_mood...) et `post_edito_photo` a été fusionné dans `post_mood` pendant l'annotation.
 - **Catégorie éditoriale** : 15 classes (mode, musique, sport, cinéma, société, art_culture, photographie, people, architecture_design, technologie, voyages, lifestyle, business, histoire, gastronomie)
 - **Stratégie** : 2 classes (Organic, Brand Content)
 

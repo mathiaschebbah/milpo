@@ -9,7 +9,7 @@
 - Page taxonomie : CRUD descriptions pour les 3 axes (formats visuels, catégories, stratégies)
 - Flag "pas sûr" (touche d) + re-annotation depuis la grille
 - Badges dev/test, filtre split, ordre test-first
-- **Statut** : ✅ terminée — test E2E validé. Annotation en cours : 257/2000 (153 test, 35 doubtful)
+- **Statut** : ✅ terminée — test E2E validé. Annotation en cours : 541/2000 (437 test terminé, 104 dev, ~100 doubtful à revoir)
 
 ## Phase 2 — Classificateur baseline
 - Intégration API modèle vision
