@@ -1,6 +1,6 @@
 # HILPO — Human-In-the-Loop Prompt Optimization
 
-> Version **2.14** — 2026-04-05
+> Version **2.15** — 2026-04-05
 
 ## Double dimension du projet
 
@@ -46,6 +46,7 @@ hilpo/                 ← repo root
 
 | Version | Date | Changements |
 |---------|------|-------------|
+| 2.15 | 2026-04-05 | Analyse équilibre dataset : loi de puissance, longue traîne, F1 macro avec/sans classes rares |
 | 2.14 | 2026-04-05 | Agent perspective (snapshot + hook PostToolUse auto), hooks PreToolUse→PostToolUse (non bloquant) |
 | 2.13 | 2026-04-05 | 4e axe positionnement : transfert zero-shot via descriptions, métrique formats vus vs jamais vus |
 | 2.12 | 2026-04-05 | Flag "pas sûr" (touche d), colonne doubtful, filtre/pastille dans grille, re-annotation rapide |

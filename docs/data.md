@@ -39,6 +39,29 @@ L'interface d'annotation pré-remplira les catégories v0 — l'humain confirme 
 
 ## Splits
 
-- 5 splits aléatoires stratifiés (seeds 1-5)
-- 1 600 dev / 400 test (80/20)
-- Stratification sur visual_format × strategy
+- Échantillon actif : 2 000 posts (seed=42), split 1 563 dev / 437 test (~78/22)
+- Stratification sur `media_product_type`
+
+## Distribution du dataset
+
+La distribution des formats visuels suit une **loi de puissance** : 8 formats couvrent 82% du dataset, 19 formats ont ≤ 1 occurrence dans le test.
+
+| Tranche | Formats | % du test |
+|---------|---------|-----------|
+| > 10 posts | 8 formats | 81.7% |
+| 2-10 posts | 16 formats | 13.3% |
+| 1 seul post | 19 formats | 4.3% |
+
+Le split test **préserve fidèlement** la distribution du dataset complet (20K posts) — les écarts de proportion sont < 4% pour tous les formats.
+
+### Points notables
+
+- **post_news domine** : 34% du test (37.8% du dataset complet)
+- **Brand Content** : 9.4% du test — déséquilibré mais reflète la réalité du feed Views
+- **0 stories** dans le test — trop rares (3% du dataset total, non échantillonnées)
+- **16 formats uniquement dans test** (absents du dev) — tous à 1-2 occurrences. Sert de test de transfert zero-shot via descriptions.
+- **2 catégories absentes** du test : nourriture, humour (trop rares)
+
+### Implications méthodologiques
+
+Le F1 macro sera reporté **avec et sans les classes rares** (< 5 occurrences) pour isoler l'effet de la longue traîne. Ce n'est pas un biais d'échantillonnage — c'est la distribution réelle du dataset. C'est un argument pour HILPO : les méthodes supervisées échouent sur la longue traîne (pas d'exemples), HILPO peut classifier via les descriptions taxonomiques.
