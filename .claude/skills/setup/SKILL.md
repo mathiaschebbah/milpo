@@ -16,6 +16,8 @@ Lis les fichiers suivants (en parallèle) :
 2. `docs/phases.md` — statut des phases de développement
 3. `docs/stack.md` — technologies utilisées
 4. `docs/architecture.md` — pipeline multi-agents
+5. `docs/conventions.md` — règles de collaboration humain-agent (AskUserQuestion, accents FR, etc.)
+6. `docs/evaluation.md` — protocole expérimental, métriques, tiers de priorité
 
 ## Étape 2 — Historique git récent
 

@@ -1,6 +1,6 @@
 # HILPO — Human-In-the-Loop Prompt Optimization
 
-> Version **2.16** — 2026-04-06
+> Version **2.17** — 2026-04-05
 
 ## Double dimension du projet
 
@@ -46,6 +46,7 @@ hilpo/                 ← repo root
 
 | Version | Date | Changements |
 |---------|------|-------------|
+| 2.17 | 2026-04-05 | Architecture Phase 2 : descripteur multimodal (Qwen 3.5 Flash FEED / Gemini 2.5 Flash REELS) + 3 classifieurs text-only, schema features JSON, 6 prompts optimisables, setup skill chargé conventions |
 | 2.16 | 2026-04-06 | Travail taxonomie : 3 fusions, 6 formats ajoutés, 68/68 décrits, critères discriminants, analyse temporelle captions |
 | 2.15 | 2026-04-05 | Analyse équilibre dataset : loi de puissance, longue traîne, F1 macro avec/sans classes rares |
 | 2.14 | 2026-04-05 | Agent perspective (snapshot + hook PostToolUse auto), hooks PreToolUse→PostToolUse (non bloquant) |

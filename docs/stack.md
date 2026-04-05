@@ -5,7 +5,11 @@
 | Backend | FastAPI (Python 3.12) |
 | Frontend | Vite + React + TypeScript + Tailwind v4 + shadcn/ui |
 | Base de données | PostgreSQL 17 (Docker, port 5433) |
-| Modèle vision (classificateur + rewriter) | À confirmer (un seul modèle pour les deux) |
+| Descripteur FEED | Qwen 3.5 Flash via OpenRouter (image + vidéo + texte) |
+| Descripteur REELS | Gemini 2.5 Flash via OpenRouter (image + vidéo + audio + texte) |
+| Classifieurs (×3) | Qwen 3.5 Flash via OpenRouter (texte seul) |
+| Rewriter (Phase 3) | À confirmer (modèle plus capable) |
+| API unifiée | OpenRouter (`/api/v1/chat/completions`, compatible OpenAI SDK) |
 | Gestion des dépendances | uv |
 | Déploiement | Local (localhost) |
 

@@ -2,55 +2,157 @@
 
 ## Pipeline multi-agents
 
-Chaque post passe par un pipeline d'agents ultra-spécialisés pour éviter le context rot :
+Chaque post passe par un pipeline en deux étapes : un **descripteur** multimodal extrait les features visuelles, puis 3 **classifieurs** text-only prédisent en parallèle.
 
 ```
-Post → Router → détecte le type (FEED/REELS/STORY)
+Post → Router → détecte le type (FEED/REELS)
                  ↓
+         Descripteur (multimodal)
+         Reçoit : médias + caption + critères discriminants Δ^m
+         Retourne : JSON structuré (features + résumé visuel libre)
+                 ↓ features JSON + caption brute
          ┌───────┼───────┐
          ↓       ↓       ↓
     Agent       Agent    Agent
    catégorie  visual_f  stratégie
-   (scopé)    (scopé)   (scopé)
+   (text-only, scopé, enum fermé)
 ```
+
+### Pourquoi deux étapes ?
+
+1. **Coût** : les tokens image/vidéo sont payés 1 seule fois (descripteur), pas 3× (un par axe)
+2. **Traçabilité** : le JSON intermédiaire est loggable — on sait ce que le modèle "voit"
+3. **Spécialisation** : le descripteur fait de la perception, les classifieurs font du jugement
+4. **Feature extraction guidée** : le descripteur connaît les critères discriminants (Δ^m) et extrait ce qui compte
 
 ### Agents
 
-1. **Router** : routage **déterministe** basé sur `media_product_type` (métadonnée structurée Instagram, pas de LLM). Chaque post est dispatché vers le scope correspondant (FEED/REELS/STORY), ce qui filtre l'espace des labels.
-2. **Agent catégorie** : classifie parmi les 15 catégories éditoriales
-3. **Agent visual_format** : classifie parmi le sous-ensemble de formats visuels **scopé par type** :
+1. **Router** : routage **déterministe** basé sur `media_product_type` (métadonnée structurée Instagram, pas de LLM). Dispatche vers le scope FEED ou REELS. Les STORY sont ignorés pour l'instant (0 dans le test).
+
+2. **Descripteur** (multimodal) : reçoit les médias (toutes les slides carousel, vidéo, audio pour les reels) + la caption + les critères discriminants du scope. Retourne un JSON structuré de features visuelles + un résumé libre insightful. **Son prompt est optimisable par HILPO.**
+
+3. **Agent catégorie** (text-only) : classifie parmi les 15 catégories éditoriales. Reçoit le JSON de features + la caption brute + les descriptions des 15 catégories.
+
+4. **Agent visual_format** (text-only) : classifie parmi le sous-ensemble de formats visuels **scopé par type** :
    - FEED → `post_*` (44 formats)
    - REELS → `reel_*` (16 formats)
-   - STORY → `story_*` (8 formats)
-4. **Agent stratégie** : détermine Organic vs Brand Content
+
+5. **Agent stratégie** (text-only) : détermine Organic vs Brand Content. Reçoit le JSON de features + la caption brute.
+
+### Modèles via OpenRouter
+
+| Rôle | Scope | Modèle | Modalités | Prix input/1M |
+|------|-------|--------|-----------|---------------|
+| Descripteur | FEED | Qwen 3.5 Flash | image + vidéo + texte | $0.065 |
+| Descripteur | REELS | Gemini 2.5 Flash | image + vidéo + audio + texte | $0.30 |
+| Classifieurs (×3) | tous | Qwen 3.5 Flash | texte seul | $0.065 |
+
+Choix du modèle REELS : Gemini 2.5 Flash est le seul modèle pas cher qui gère l'audio — nécessaire pour `reel_voix_off` et les formats avec narration.
+
+### Schema du descripteur
+
+Le descripteur retourne un JSON structuré avec deux niveaux :
+- **`resume_visuel`** : description libre et insightful de tous les médias
+- **Features structurées** : champs typés pour réduire le champ de décision des classifieurs
+
+```json
+{
+  "resume_visuel": "Texte libre décrivant ce qu'on voit, les patterns, les indices subtils",
+
+  "texte_overlay": {
+    "present": false,
+    "type": null,
+    "contenu_resume": null
+  },
+  "logos": {
+    "views": false,
+    "specifique": null,
+    "marque_partenaire": null
+  },
+  "mise_en_page": {
+    "fond": null,
+    "nombre_slides": 1,
+    "structure": null
+  },
+  "contenu_principal": {
+    "personnes_visibles": false,
+    "type_personne": null,
+    "screenshots_film": false,
+    "pochettes_album": false,
+    "zoom_objet": false,
+    "photos_evenement": false
+  },
+  "audio_video": {
+    "voix_off_narrative": false,
+    "interview_face_camera": false,
+    "musique_dominante": false,
+    "type_montage": null
+  },
+  "analyse_caption": {
+    "longueur": 0,
+    "mentions_marques": [],
+    "hashtags_format": null,
+    "mention_partenariat": false,
+    "sujet_resume": null
+  }
+}
+```
+
+#### Valeurs possibles (enums)
+
+| Champ | Valeurs |
+|-------|---------|
+| `texte_overlay.type` | `actualite`, `citation`, `chiffre`, `titre_editorial`, `liste_numerotee`, `annotation`, `description_produit` |
+| `logos.specifique` | `BLUEPRINT`, `MOODY_MONDAY`, `MOODY_SUNDAY`, `REWIND`, `9_PIECES`, `THROWBACK`, `VIEWS_ESSENTIALS`, `VIEWS_RESEARCH`, `VIEWS_TV` |
+| `mise_en_page.fond` | `photo_plein_cadre`, `couleur_unie`, `texture`, `collage`, `split_screen` |
+| `mise_en_page.structure` | `slide_unique`, `gabarit_repete`, `opener_contenu_closer`, `collage_grille` |
+| `contenu_principal.type_personne` | `artiste`, `athlete`, `personnalite`, `anonyme` |
+| `audio_video.type_montage` | `captation_live`, `montage_edite`, `face_camera`, `b_roll_narration` |
 
 ### Routage et réduction de l'espace de labels
 
-Le routage déterministe réduit drastiquement l'espace de classification pour `visual_format` :
+Le routage déterministe réduit l'espace de classification pour `visual_format` :
 
 | Scope | Formats possibles | Réduction |
 |-------|------------------|-----------|
 | FEED | 44 formats `post_*` | — |
 | REELS | 16 formats `reel_*` | ÷3 |
-| STORY | 8 formats `story_*` | ÷5 |
 
-Chaque prompt scopé `(I_t^(k,m), Δ^m)` ne contient que les descriptions des formats pertinents pour le type `m`. Le contexte fourni à l'agent inclut : `media_product_type`, `media_type` (IMAGE/CAROUSEL_ALBUM/VIDEO), nombre de slides, et la caption.
+Chaque classifieur ne voit que les labels de son scope via un **tool use avec enum fermé**. Le modèle est contraint structurellement — il ne peut pas retourner un label hors taxonomie.
 
-**Note historique** : l'heuristique v0 n'utilisait pas le `media_product_type` pour router, ce qui a produit ~2 800 erreurs de préfixe (ex : REELS labellés `post_news` au lieu de `reel_news`). Le routage déterministe élimine cette classe d'erreurs.
+### Prompts scopés et optimisables
 
-### Prompts scopés
+Chaque agent a un prompt composé de deux blocs :
 
-Chaque agent a un prompt par type de post. Ex : `agent_categorie × REELS` a son propre prompt, optimisé indépendamment de `agent_categorie × FEED`. Cela permet :
-- D'adapter les instructions au média (vidéo vs image)
-- D'optimiser chaque prompt sur son sous-ensemble de données
-- De réduire l'espace de labels (le modèle choisit parmi moins de classes)
+```
+┌─────────────────────────────────────────┐
+│ Descriptions taxonomiques Δ^m (FIXES)   │
+│ Rédigées par l'humain, scopées par type │
+│ Cache-friendly (ne changent jamais)     │
+├─────────────────────────────────────────┤
+│ Instructions I_t (OPTIMISÉES par HILPO) │
+│ Modifiées par le rewriter à chaque      │
+│ itération de la boucle                  │
+└─────────────────────────────────────────┘
+```
+
+6 prompts optimisables au total :
+
+| Prompt | Agent | Scope |
+|--------|-------|-------|
+| `I_t^(desc, FEED)` | Descripteur | FEED |
+| `I_t^(desc, REELS)` | Descripteur | REELS |
+| `I_t^(cat)` | Classifieur catégorie | tous |
+| `I_t^(vf, FEED)` | Classifieur visual_format | FEED |
+| `I_t^(vf, REELS)` | Classifieur visual_format | REELS |
+| `I_t^(str)` | Classifieur stratégie | tous |
 
 ### Flux d'annotation (Phase 1-2)
 
 1. L'humain ouvre l'interface de swipe
 2. Un post s'affiche avec les labels v0 (heuristique) pré-remplis
 3. L'humain confirme ou corrige → annotation stockée
-4. En parallèle (Phase 2+), les agents prédisent → prédictions stockées
+4. En parallèle (Phase 2+), le descripteur analyse le post → 3 classifieurs prédisent
 5. Comparaison annotation vs prédictions → match calculé
 
 ### Boucle HILPO (Phase 3)
@@ -61,20 +163,24 @@ Chaque agent a un prompt par type de post. Ex : `agent_categorie × REELS` a son
 4. Évaluation passive sur les posts suivants
 5. Si accuracy ≥ ancienne → promotion en actif, sinon → rejeté
 
+Note : le rewriter peut optimiser le prompt du descripteur ET des classifieurs (2 niveaux d'optimisation).
+
 ## Séparation backend / engine
 
 ```
 hilpo/              ← package Python : moteur HILPO
-├── inference.py    ← appel API vision, prédiction
-├── rewriter.py     ← agent rewriter, buffer d'erreurs
-├── loop.py         ← boucle HILPO (promotion/rollback)
-└── eval.py         ← métriques, évaluation
+├── config.py       ← OpenRouter API key, model IDs
+├── client.py       ← client OpenRouter (compatible OpenAI SDK)
+├── router.py       ← routage déterministe FEED/REELS
+├── agent.py        ← agent paramétré (descripteur ou classifieur)
+├── inference.py    ← pipeline : router → descripteur → 3 classifieurs → stockage
+└── eval.py         ← métriques (F1, kappa, confusion)
 
 apps/backend/       ← FastAPI : couche HTTP pour l'interface d'annotation
 ```
 
 - Le **backend** gère les annotations humaines, le CRUD taxonomie, le serving des posts.
-- Le **package `hilpo/`** contient toute la logique IA : inférence, rewriter, boucle d'optimisation, évaluation.
+- Le **package `hilpo/`** contient toute la logique IA : descripteur, classifieurs, rewriter, boucle d'optimisation, évaluation.
 - Le backend peut importer `hilpo` pour exposer des endpoints, mais la logique métier vit dans le package.
 - Le package `hilpo/` est utilisable indépendamment (scripts, simulations, éval CLI).
 
@@ -91,15 +197,16 @@ L'humain annote **en aveugle** (sans voir la prédiction du modèle) pour évite
 
 ### Notation
 
-- **D** = {(x_i, m_i)} pour i=1..N : ensemble de posts, où x_i = (image_i, caption_i) est l'entrée multimodale et m_i ∈ {FEED, REELS, STORY} le type
-- **Y_k^m** : espace des labels pour l'axe k ∈ {catégorie, visual_format, stratégie}, scopé par le type m. Pour visual_format : Y_vf^FEED = {post_*}, Y_vf^REELS = {reel_*}, Y_vf^STORY = {story_*}. Pour catégorie et stratégie : identique quel que soit m.
+- **D** = {(x_i, m_i)} pour i=1..N : ensemble de posts, où x_i = (image_i, caption_i) est l'entrée multimodale et m_i ∈ {FEED, REELS} le type
+- **Y_k^m** : espace des labels pour l'axe k ∈ {catégorie, visual_format, stratégie}, scopé par le type m. Pour visual_format : Y_vf^FEED = {post_*}, Y_vf^REELS = {reel_*}. Pour catégorie et stratégie : identique quel que soit m.
 - **Δ^m** : descriptions taxonomiques scopées par type m (rédigées par l'humain, fixes). Pour visual_format, seules les descriptions des formats du scope m sont injectées dans le prompt.
 - **I_t^(k,m)** : instructions actives à l'itération t pour l'agent k scopé au type m. C'est la partie optimisée par HILPO.
 - **p_t = (I_t, Δ^m)** : prompt complet = instructions + descriptions scopées. Seul I_t change au fil des itérations.
 - **f_θ(x, p)** : modèle de vision-langage (paramètres θ fixés), prompt p
 - **h(x_i) ∈ Y_k** : annotation humaine pour le post x_i
+- **D(x_i, p_desc)** : sortie du descripteur — features JSON extraites du post x_i avec le prompt p_desc
 
-### Algorithme
+### Algorithme (avec descripteur)
 
 ```
 Entrée : D, B (batch size = 30), f_θ, I_0 (instructions initiales), Δ (descriptions fixes)
@@ -110,11 +217,13 @@ E_t ← ∅                                  // buffer d'erreurs
 
 Pour chaque post x_i présenté à l'humain :
     1. Collecter h(x_i)                   // annotation humaine
-    2. ŷ_i ← f_θ(x_i, (I_t, Δ))         // prédiction avec prompt complet
-    3. Si h(x_i) ≠ ŷ_i :
-         E_t ← E_t ∪ {(x_i, h(x_i), ŷ_i)}
-    4. Si |E_t| ≥ B :
-         I_{t+1} ← R(I_t, E_t, Δ)       // rewriter : voit Δ, ne modifie que I
+    2. features_i ← D(x_i, (I_t^desc, Δ^m))  // descripteur multimodal
+    3. Pour chaque axe k en parallèle :
+         ŷ_i^k ← f_θ(features_i, caption_i, (I_t^k, Δ^m))  // classifieur text-only
+    4. Si h(x_i) ≠ ŷ_i pour un axe k :
+         E_t ��� E_t ∪ {(x_i, features_i, h(x_i), ŷ_i)}
+    5. Si |E_t| ≥ B :
+         I_{t+1} ← R(I_t, E_t, Δ)       // rewriter : peut modifier desc + classifieurs
          Si acc((I_{t+1}, Δ)) ≥ acc((I_t, Δ)) sur fenêtre de validation :
              t ← t + 1                   // promotion
          Sinon :
