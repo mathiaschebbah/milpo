@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any
 
 from openai import AsyncOpenAI
+
+log = logging.getLogger("hilpo")
 
 from hilpo.config import (
     MODEL_CLASSIFIER,
@@ -43,35 +46,60 @@ async def async_call_descriptor(
     )
     response_schema = DescriptorFeatures.model_json_schema()
 
-    async with semaphore:
-        start = time.monotonic()
-        response = await client.chat.completions.create(
+    max_retries = 3
+    for attempt in range(max_retries):
+        async with semaphore:
+            start = time.monotonic()
+            try:
+                response = await client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    response_format={
+                        "type": "json_schema",
+                        "json_schema": {
+                            "name": "descriptor_features",
+                            "strict": True,
+                            "schema": response_schema,
+                        },
+                    },
+                    temperature=0.1,
+                )
+            except Exception as e:
+                log.warning("Descriptor appel échoué (attempt %d): %s", attempt + 1, e)
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                raise
+            latency_ms = int((time.monotonic() - start) * 1000)
+
+        if not response.choices:
+            log.warning("Descriptor réponse vide (attempt %d)", attempt + 1)
+            if attempt < max_retries - 1:
+                await asyncio.sleep(2 ** attempt)
+                continue
+            raise RuntimeError("Descriptor: réponse vide après retries")
+
+        raw = response.choices[0].message.content
+        if not raw:
+            log.warning("Descriptor content vide (attempt %d)", attempt + 1)
+            if attempt < max_retries - 1:
+                await asyncio.sleep(2 ** attempt)
+                continue
+            raise RuntimeError("Descriptor: content vide après retries")
+
+        features = DescriptorFeatures.model_validate_json(raw)
+        usage = response.usage
+
+        api_log = ApiCallLog(
+            agent="descriptor",
             model=model,
-            messages=messages,
-            response_format={
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "descriptor_features",
-                    "strict": True,
-                    "schema": response_schema,
-                },
-            },
-            temperature=0.1,
+            input_tokens=usage.prompt_tokens if usage else 0,
+            output_tokens=usage.completion_tokens if usage else 0,
+            latency_ms=latency_ms,
         )
-        latency_ms = int((time.monotonic() - start) * 1000)
+        return features, api_log
 
-    raw = response.choices[0].message.content
-    features = DescriptorFeatures.model_validate_json(raw)
-    usage = response.usage
-
-    log = ApiCallLog(
-        agent="descriptor",
-        model=model,
-        input_tokens=usage.prompt_tokens if usage else 0,
-        output_tokens=usage.completion_tokens if usage else 0,
-        latency_ms=latency_ms,
-    )
-    return features, log
+    raise RuntimeError("Descriptor: épuisé les retries")
 
 
 async def async_call_classifier(
@@ -90,37 +118,55 @@ async def async_call_classifier(
     )
     tool = build_classifier_tool(axis, labels)
 
-    async with semaphore:
-        start = time.monotonic()
-        response = await client.chat.completions.create(
+    max_retries = 3
+    for attempt in range(max_retries):
+        async with semaphore:
+            start = time.monotonic()
+            try:
+                response = await client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    tools=[tool],
+                    tool_choice="auto",
+                    temperature=0.1,
+                )
+            except Exception as e:
+                log.warning("Classifier %s échoué (attempt %d): %s", axis, attempt + 1, e)
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                raise
+            latency_ms = int((time.monotonic() - start) * 1000)
+
+        if not response.choices:
+            log.warning("Classifier %s réponse vide (attempt %d)", axis, attempt + 1)
+            if attempt < max_retries - 1:
+                await asyncio.sleep(2 ** attempt)
+                continue
+            raise RuntimeError(f"Classifier {axis}: réponse vide après retries")
+
+        choice = response.choices[0]
+        if choice.message.tool_calls:
+            tool_call = choice.message.tool_calls[0]
+            result = json.loads(tool_call.function.arguments)
+            label = result["label"]
+            confidence = result.get("confidence", "medium")
+        else:
+            raw_text = choice.message.content or ""
+            label = raw_text.strip().split("\n")[0].strip()
+            confidence = "low"
+
+        usage = response.usage
+        api_log = ApiCallLog(
+            agent=axis,
             model=model,
-            messages=messages,
-            tools=[tool],
-            tool_choice="auto",
-            temperature=0.1,
+            input_tokens=usage.prompt_tokens if usage else 0,
+            output_tokens=usage.completion_tokens if usage else 0,
+            latency_ms=latency_ms,
         )
-        latency_ms = int((time.monotonic() - start) * 1000)
+        return label, confidence, api_log
 
-    choice = response.choices[0]
-    if choice.message.tool_calls:
-        tool_call = choice.message.tool_calls[0]
-        result = json.loads(tool_call.function.arguments)
-        label = result["label"]
-        confidence = result.get("confidence", "medium")
-    else:
-        raw_text = choice.message.content or ""
-        label = raw_text.strip().split("\n")[0].strip()
-        confidence = "low"
-
-    usage = response.usage
-    log = ApiCallLog(
-        agent=axis,
-        model=model,
-        input_tokens=usage.prompt_tokens if usage else 0,
-        output_tokens=usage.completion_tokens if usage else 0,
-        latency_ms=latency_ms,
-    )
-    return label, confidence, log
+    raise RuntimeError(f"Classifier {axis}: épuisé les retries")
 
 
 async def async_classify_post(
@@ -213,16 +259,19 @@ async def async_classify_batch(
             prompts = prompts_by_scope[scope]
             labels = labels_by_scope[scope]
 
-            result = await async_classify_post(
-                post=post,
-                prompts=prompts,
-                category_labels=labels["category"],
-                visual_format_labels=labels["visual_format"],
-                strategy_labels=labels["strategy"],
-                client=client,
-                semaphore=semaphore,
-            )
-            results[idx] = result
+            try:
+                result = await async_classify_post(
+                    post=post,
+                    prompts=prompts,
+                    category_labels=labels["category"],
+                    visual_format_labels=labels["visual_format"],
+                    strategy_labels=labels["strategy"],
+                    client=client,
+                    semaphore=semaphore,
+                )
+                results[idx] = result
+            except Exception as e:
+                log.error("Post %s échoué: %s", post.ig_media_id, e)
             done_count += 1
             if on_progress:
                 on_progress(done_count, len(posts))

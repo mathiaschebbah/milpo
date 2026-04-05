@@ -38,6 +38,11 @@ logging.basicConfig(
     format="%(asctime)s  %(message)s",
     datefmt="%H:%M:%S",
 )
+# Silence les logs HTTP de openai/httpx
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("openai").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+
 log = logging.getLogger("baseline")
 
 
