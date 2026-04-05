@@ -179,6 +179,99 @@ def store_prediction(
 # ── API calls ──────────────────────────────────────────────────
 
 
+# ── Annotations (ground truth) ────────────────────────────────
+
+
+def load_dev_annotations(conn: psycopg.Connection) -> dict[int, dict]:
+    """Charge les annotations dev. Retourne {ig_media_id: {category, visual_format, strategy}}."""
+    rows = conn.execute(
+        """
+        SELECT a.ig_media_id,
+               c.name AS category,
+               vf.name AS visual_format,
+               a.strategy::text AS strategy
+        FROM annotations a
+        JOIN categories c ON c.id = a.category_id
+        JOIN visual_formats vf ON vf.id = a.visual_format_id
+        JOIN sample_posts sp ON sp.ig_media_id = a.ig_media_id
+        WHERE sp.split = 'dev'
+        ORDER BY sp.presentation_order
+        """
+    ).fetchall()
+    return {
+        r["ig_media_id"]: {
+            "category": r["category"],
+            "visual_format": r["visual_format"],
+            "strategy": r["strategy"],
+        }
+        for r in rows
+    }
+
+
+# ── Prompt lifecycle ──────────────────────────────────────────
+
+
+def retire_prompt(conn: psycopg.Connection, prompt_id: int) -> None:
+    """Passe un prompt en status='retired'."""
+    conn.execute(
+        "UPDATE prompt_versions SET status = 'retired'::prompt_status WHERE id = %s",
+        (prompt_id,),
+    )
+    conn.commit()
+
+
+def activate_prompt(conn: psycopg.Connection, prompt_id: int) -> None:
+    """Passe un prompt en status='active'."""
+    conn.execute(
+        "UPDATE prompt_versions SET status = 'active'::prompt_status WHERE id = %s",
+        (prompt_id,),
+    )
+    conn.commit()
+
+
+# ── Rewrite logs ──────────────────────────────────────────────
+
+
+def store_rewrite_log(
+    conn: psycopg.Connection,
+    prompt_before_id: int,
+    prompt_after_id: int,
+    error_batch: list[dict],
+    rewriter_reasoning: str,
+    accepted: bool,
+    simulation_run_id: int,
+    target_agent: str,
+    target_scope: str | None,
+    incumbent_accuracy: float,
+    candidate_accuracy: float,
+    eval_sample_size: int,
+    iteration: int,
+) -> int:
+    """Insère un log de rewrite. Retourne l'id."""
+    row = conn.execute(
+        """
+        INSERT INTO rewrite_logs
+            (prompt_before_id, prompt_after_id, error_batch, rewriter_reasoning,
+             accepted, simulation_run_id, target_agent, target_scope,
+             incumbent_accuracy, candidate_accuracy, eval_sample_size, iteration)
+        VALUES (%s, %s, %s::jsonb, %s, %s, %s, %s::agent_type, %s, %s, %s, %s, %s)
+        RETURNING id
+        """,
+        (
+            prompt_before_id, prompt_after_id,
+            json.dumps(error_batch), rewriter_reasoning,
+            accepted, simulation_run_id,
+            target_agent, target_scope,
+            incumbent_accuracy, candidate_accuracy, eval_sample_size, iteration,
+        ),
+    ).fetchone()
+    conn.commit()
+    return row["id"]
+
+
+# ── API calls ──────────────────────────────────────────────────
+
+
 def store_api_call(
     conn: psycopg.Connection,
     call_type: str,

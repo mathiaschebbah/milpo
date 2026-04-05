@@ -20,6 +20,7 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 MODEL_DESCRIPTOR_FEED = "qwen/qwen3.5-flash-02-23"
 MODEL_DESCRIPTOR_REELS = "google/gemini-2.5-flash"
 MODEL_CLASSIFIER = "qwen/qwen3.5-flash-02-23"
+MODEL_REWRITER = os.environ.get("HILPO_MODEL_REWRITER", "openai/gpt-5.4")
 
 # GCS
 GCS_SIGNING_SA_EMAIL = os.environ.get("HILPO_GCS_SIGNING_SA_EMAIL", "")
