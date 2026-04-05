@@ -3,6 +3,7 @@
 Fichiers :
 - [`001_initial_schema.sql`](../apps/backend/migrations/001_initial_schema.sql) — tables de base
 - [`002_experiment_infra.sql`](../apps/backend/migrations/002_experiment_infra.sql) — reproductibilité + simulations
+- [`003_taxonomy_descriptions.sql`](../apps/backend/migrations/003_taxonomy_descriptions.sql) — colonne description sur lookups + table strategies
 - [`003_descriptor_agent.sql`](../apps/backend/migrations/003_descriptor_agent.sql) — ajout `descriptor` à l'enum `agent_type`
 
 ## Tables
@@ -12,7 +13,7 @@ Fichiers :
 | `posts` | Posts Instagram bruts (import CSV) |
 | `post_media` | Fichiers média individuels — images/vidéos, URLs GCS (import CSV) |
 | `categories` | Lookup — 15 catégories éditoriales (+ description) |
-| `visual_formats` | Lookup — 63 formats visuels (43 post + 13 reel + 7 story) (+ description) |
+| `visual_formats` | Lookup — 68 formats visuels (44 post + 16 reel + 8 story) (+ description) |
 | `strategies` | Lookup — 2 stratégies (Organic, Brand Content) (+ description) |
 | `heuristic_labels` | Catégorisation v0 — heuristique imprécise (import CSV) |
 | `sample_posts` | Échantillon 2000 posts + split dev/test + ordre de présentation |
