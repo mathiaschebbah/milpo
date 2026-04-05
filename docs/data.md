@@ -2,7 +2,7 @@
 
 ## Source
 
-21 425 posts Instagram dont 21 065 @viewsfrance et 360 @miramagazine. L'échantillon de 2 000 posts est filtré sur **@viewsfrance uniquement** (ig_user_id = 17841403755827826).
+21 425 posts Instagram en BDD (21 065 @viewsfrance + 360 @miramagazine). Les CSV source contiennent ~114 000 posts multi-comptes ; seuls les posts importés en BDD sont utilisés. L'échantillon de 2 000 posts est filtré sur **@viewsfrance uniquement** (ig_user_id = 17841403755827826).
 
 ## Fichiers (dans data/, gitignored)
 
@@ -30,10 +30,11 @@ L'interface d'annotation pré-remplira les catégories v0 — l'humain confirme 
 
 ## Axes de classification
 
-- **Format visuel** : 63 classes, scopées par `media_product_type` :
-  - `post_*` : 43 formats (FEED)
-  - `reel_*` : 13 formats (REELS)
-  - `story_*` : 7 formats (STORY)
+- **Format visuel** : 68 classes en BDD, scopées par `media_product_type` :
+  - `post_*` : 45 formats (FEED)
+  - `reel_*` : 15 formats (REELS)
+  - `story_*` : 8 formats (STORY)
+  - Note : le CSV d'origine contenait 45 formats (38 post + 7 reel). Les formats supplémentaires ont été ajoutés manuellement pendant l'annotation (ex: reel_throwback, post_views_magazine).
 - **Catégorie éditoriale** : 15 classes (mode, musique, sport, cinéma, société, art_culture, photographie, people, architecture_design, technologie, voyages, lifestyle, business, histoire, gastronomie)
 - **Stratégie** : 2 classes (Organic, Brand Content)
 
