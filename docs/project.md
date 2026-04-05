@@ -16,13 +16,15 @@ Comment optimiser itérativement un prompt de classification multimodale en expl
 
 ## Positionnement
 
-HILPO se distingue des travaux existants sur **trois axes simultanés** :
+HILPO se distingue des travaux existants sur **quatre axes** :
 
 1. **L'humain annote les données, pas le prompt.** Contrairement à iPrOp (Li & Klinger, 2025) où l'humain choisit entre des prompts candidats, dans HILPO l'humain corrige les classifications. Le signal d'erreur est plus fin : correction instance-par-instance, pas choix global entre instructions.
 
 2. **Domaine multimodal à taxonomie subjective.** Les 44 formats visuels et 15 catégories éditoriales de Views sont des classes définies par un média, pas par un benchmark académique. La taxonomie est instable, culturellement située — un terrain où l'oracle humain est plus précieux que les métriques automatiques.
 
 3. **Le prompt est l'artefact final, avec séparation explicite.** Le prompt HILPO est composé de deux blocs : les descriptions taxonomiques (rédigées par l'expert métier, fixes) et les instructions de classification (optimisées par la boucle). Contrairement au fine-tuning, l'artefact est lisible, auditable et transférable. On peut analyser précisément ce que la boucle a appris (instructions) vs ce que l'humain savait déjà (descriptions).
+
+4. **Transfert zero-shot via les descriptions.** Contrairement aux approches supervisées qui nécessitent des exemples d'entraînement pour chaque classe, HILPO peut classifier des formats jamais rencontrés pendant l'optimisation — il suffit qu'une description textuelle existe dans le prompt. L'optimisation des instructions généralise au-delà des classes vues : un format rare absent du dev peut être correctement classifié dans le test grâce à sa description. C'est un avantage structurel par rapport aux baselines supervisées (CLIP + LogReg, few-shot) qui échouent nécessairement sur les classes sans exemples.
 
 ## Claim visé
 

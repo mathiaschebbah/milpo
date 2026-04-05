@@ -1,6 +1,6 @@
 # HILPO — Human-In-the-Loop Prompt Optimization
 
-> Version **2.12** — 2026-04-05
+> Version **2.13** — 2026-04-05
 
 ## Double dimension du projet
 
@@ -45,6 +45,7 @@ hilpo/                 ← repo root
 
 | Version | Date | Changements |
 |---------|------|-------------|
+| 2.13 | 2026-04-05 | 4e axe positionnement : transfert zero-shot via descriptions, métrique formats vus vs jamais vus |
 | 2.12 | 2026-04-05 | Flag "pas sûr" (touche d), colonne doubtful, filtre/pastille dans grille, re-annotation rapide |
 | 2.11 | 2026-04-05 | Ordre test-first, badge dev/test dans UI, filtre split, re-annotation posts test via grille, GET /posts/{id} |
 | 2.10 | 2026-04-05 | Séparation backend (HTTP) / engine hilpo/ (IA), contraintes split dev/test, annotation aveugle |

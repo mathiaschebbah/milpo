@@ -120,6 +120,7 @@ Tous rapportés en moyenne ± écart-type sur 5 splits.
 ### Discussion
 - [ ] Classes qui bénéficient le plus
 - [ ] Évolution qualitative du prompt (v0 → vN)
+- [ ] Transfert zero-shot : accuracy formats vus vs jamais vus pendant l'optimisation
 - [ ] Limites honnêtes
 - [ ] Coût comparé (annotations, appels API, $)
 
