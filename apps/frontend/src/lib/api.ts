@@ -115,8 +115,8 @@ export async function fetchPost(igMediaId: string, annotator = 'mathias'): Promi
   return requestJson<NextPostResponse>(`/posts/${igMediaId}?annotator=${annotator}`)
 }
 
-export async function fetchNextPost(annotator = 'mathias', excludeIds: string[] = []): Promise<NextPostResponse> {
-  const qs = new URLSearchParams({ annotator })
+export async function fetchNextPost(annotator = 'mathias', excludeIds: string[] = [], mode = 'next'): Promise<NextPostResponse> {
+  const qs = new URLSearchParams({ annotator, mode })
   excludeIds.forEach(excludeId => qs.append('exclude', excludeId))
   return requestJson<NextPostResponse>(`/posts/next?${qs}`)
 }

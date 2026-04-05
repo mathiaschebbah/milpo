@@ -18,8 +18,11 @@ class PostService:
     def __init__(self, repository: PostRepository):
         self.repository = repository
 
-    async def get_next_post(self, annotator: str, exclude: list[int] | None = None) -> NextPostOut:
-        row = await self.repository.find_next_unannotated(annotator, exclude)
+    async def get_next_post(self, annotator: str, exclude: list[int] | None = None, mode: str = "next") -> NextPostOut:
+        if mode == "doubtful":
+            row = await self.repository.find_next_doubtful(annotator, exclude)
+        else:
+            row = await self.repository.find_next_unannotated(annotator, exclude)
         if not row:
             raise AllAnnotatedError(annotator)
 

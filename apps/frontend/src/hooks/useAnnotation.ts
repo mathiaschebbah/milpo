@@ -53,18 +53,19 @@ export function useAnnotation() {
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [ready, setReady] = useState(false)
+  const [mode, setMode] = useState<'next' | 'doubtful'>('next')
 
   const loadNext = useCallback(async (excludeIds: string[] = []) => {
     setLoading(true)
     try {
       let activeExcludes = excludeIds
-      let [data, prog] = await Promise.all([fetchNextPost('mathias', activeExcludes), fetchProgress()])
+      let [data, prog] = await Promise.all([fetchNextPost('mathias', activeExcludes, mode), fetchProgress()])
 
       // If every remaining post was skipped, restart from the skipped pool.
       if (data.done && activeExcludes.length > 0) {
         activeExcludes = []
         setSkippedIds([])
-        ;[data, prog] = await Promise.all([fetchNextPost(), fetchProgress()])
+        ;[data, prog] = await Promise.all([fetchNextPost('mathias', [], mode), fetchProgress()])
       }
 
       if (data.done) {
@@ -78,7 +79,7 @@ export function useAnnotation() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [mode])
 
   // Charger les lookups d'abord, puis le premier post
   useEffect(() => {
@@ -135,5 +136,15 @@ export function useAnnotation() {
     setVisualFormats(prev => prev.map(vf => vf.id === updated.id ? updated : vf))
   }, [])
 
-  return { current, done, progress, categories, visualFormats, loading: loading || !ready, submitting, submit, skip, loadPost, updateVisualFormat }
+  const switchMode = useCallback((newMode: 'next' | 'doubtful') => {
+    setMode(newMode)
+    setSkippedIds([])
+    setDone(false)
+  }, [])
+
+  useEffect(() => {
+    if (ready) { setSkippedIds([]); loadNext() }
+  }, [mode])
+
+  return { current, done, progress, categories, visualFormats, loading: loading || !ready, submitting, submit, skip, loadPost, updateVisualFormat, mode, switchMode }
 }

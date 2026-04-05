@@ -11,7 +11,7 @@ type View = 'annotate' | 'grid' | 'taxonomy'
 
 function App() {
   const [view, setView] = useState<View>('annotate')
-  const { current, done, progress, categories, visualFormats, loading, submit, skip, loadPost, updateVisualFormat } = useAnnotation()
+  const { current, done, progress, categories, visualFormats, loading, submit, skip, loadPost, updateVisualFormat, mode, switchMode } = useAnnotation()
 
   const pct = progress.total > 0 ? (progress.annotated / progress.total) * 100 : 0
 
@@ -57,6 +57,18 @@ function App() {
           </div>
 
           <div className="flex items-center gap-3">
+            {view === 'annotate' && (
+              <button
+                onClick={() => switchMode(mode === 'next' ? 'doubtful' : 'next')}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-all ${
+                  mode === 'doubtful'
+                    ? 'bg-amber-100 text-amber-700 ring-1 ring-amber-300'
+                    : 'text-neutral-500 hover:text-neutral-700 bg-neutral-100'
+                }`}
+              >
+                {mode === 'doubtful' ? 'Pas sur' : 'Nouveaux'}
+              </button>
+            )}
             <span className="text-xs tabular-nums text-neutral-500">
               {progress.annotated} / {progress.total}
             </span>

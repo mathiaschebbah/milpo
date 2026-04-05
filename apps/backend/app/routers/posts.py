@@ -31,9 +31,10 @@ async def list_posts(
 async def get_next_post(
     annotator: str = "mathias",
     exclude: list[int] = Query(default_factory=list),
+    mode: str = "next",
     service: PostService = Depends(get_service),
 ):
-    return await service.get_next_post(annotator, exclude)
+    return await service.get_next_post(annotator, exclude, mode)
 
 
 @router.get("/progress", response_model=ProgressOut)
