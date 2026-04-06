@@ -80,6 +80,43 @@ Les REELS sont significativement plus durs que les FEED sur catégorie et visual
 
 Ces patterns sont **identiques aux observations du run id=2 (pré-fix)** — ce sont des limitations des **prompts v0**, pas du modèle. C'est exactement ce que la boucle HILPO doit corriger en simulation.
 
+### Visual_format — accuracy par format (≥ 3 occurrences test)
+
+22 formats ont au moins 3 occurrences dans le test set, classés par fréquence :
+
+| Format | Scope | Test | OK | Accuracy | Δ vs run id=2 | Note |
+|--------|-------|------|----|----------|---------------|------|
+| post_mood | FEED | 113 | 109 | **96%** | +2 pts | Format dominant, parfaitement classifié |
+| post_news | FEED | 111 | 78 | 70% | +2 pts | Toujours 22 confusions ← post_mood (anciens news) |
+| post_chiffre | FEED | 22 | 4 | **18%** | **-23 pts** ⚠️ | Régression : Gemini 3 confond plus avec post_news |
+| post_quote | FEED | 21 | 17 | 81% | n/a | Bien classifié, signal "guillemets" clair |
+| post_selection | FEED | 20 | 7 | **35%** | **-15 pts** ⚠️ | Régression : confusion avec serie_mood_texte |
+| reel_voix_off | REELS | 17 | 15 | **88%** | **+6 pts** | Audio bien détecté par Gemini 3 |
+| reel_news | REELS | 16 | 5 | 31% | +6 pts | Reels sans gabarit Views classés reel_mood |
+| reel_wrap_up | REELS | 12 | 3 | **25%** | **+25 pts** | Gros gain : Gemini 3 voit le montage post-événement |
+| reel_interview | REELS | 8 | 2 | 25% | n/a | Confusion avec reel_sitdown |
+| post_wrap_up | FEED | 8 | 0 | 0% | = | Toujours invisible — absorbé par mood |
+| post_sorties_musique | FEED | 7 | 5 | 71% | n/a | Bien classifié |
+| post_classement | FEED | 7 | 3 | 43% | n/a | |
+| post_interview | FEED | 7 | 3 | 43% | n/a | |
+| post_serie_mood_texte | FEED | 6 | 2 | 33% | n/a | |
+| post_en_savoir_plus_selection | FEED | 6 | 0 | 0% | = | Variante non distinguée |
+| post_en_savoir_plus | FEED | 5 | 0 | 0% | = | Toujours invisible |
+| post_article | FEED | 4 | 3 | 75% | n/a | |
+| post_stills | FEED | 4 | 4 | **100%** | = | Parfait — screenshots distinctifs |
+| post_playlist_views_essentials | FEED | 3 | 2 | 67% | n/a | |
+| reel_mood | REELS | 3 | 3 | **100%** | n/a | |
+| post_frise | FEED | 3 | 0 | 0% | n/a | Format rare invisible |
+| post_double_selection | FEED | 3 | 3 | **100%** | n/a | |
+
+**Observation clé** : le changement de descripteur (Qwen → Gemini 3 Flash Preview) a un effet **non uniforme** sur les formats individuels :
+- **Gains** sur les REELS (`reel_voix_off` +6, `reel_wrap_up` +25, `reel_news` +6) — Gemini 3 perçoit mieux les vidéos.
+- **Gains modérés** sur `post_mood` (+2) et `post_news` (+2).
+- **Régressions notables** sur `post_chiffre` (-23) et `post_selection` (-15) — Gemini 3 a tendance à les confondre avec `post_news` et `post_serie_mood_texte` respectivement. Hypothèse : Gemini 3 priorise davantage le texte d'actualité visible que le chiffre marquant comme signal.
+- **Stabilité** sur les formats rares à 0% (`post_wrap_up`, `post_en_savoir_plus`) — ils restent invisibles, absorbés par les formats dominants.
+
+Le gain net `+1.1 pt sur visual_format global` masque ces compensations. Ces régressions sur `post_chiffre` et `post_selection` deviennent des **cibles prioritaires pour la boucle HILPO** : ce sont des cas où l'instruction I_t actuelle gagne à être affinée pour mieux discriminer. Les gains sur les REELS, eux, sont structurels (modèle plus capable) et ne nécessitent pas d'optimisation supplémentaire.
+
 ### Coût détaillé
 
 | Agent | Modèle | Appels | Tokens in | Tokens out | Latence moy. | Coût |

@@ -1,6 +1,6 @@
 # HILPO — Human-In-the-Loop Prompt Optimization
 
-> Version **2.28** — 2026-04-06
+> Version **2.29** — 2026-04-06
 
 ## Double dimension du projet
 
@@ -47,6 +47,7 @@ hilpo/                 ← repo root
 
 | Version | Date | Changements |
 |---------|------|-------------|
+| 2.29 | 2026-04-06 | Ajout table "Visual_format — accuracy par format (≥3 occ)" dans `evaluation.md` : 22 formats listés avec deltas vs run id=2, scope FEED/REELS, observations sur l'effet non uniforme du switch Gemini 3 (gros gains REELS `reel_wrap_up` +25 / `reel_voix_off` +6, mais régressions `post_chiffre` -23 et `post_selection` -15). Ces régressions deviennent cibles prioritaires pour la boucle HILPO. |
 | 2.28 | 2026-04-06 | **B0 stabilisé** — run id=7, **437/437 posts (100% couverture)**, accuracies **86.7% / 65.4% / 94.5%**, coût **$2.68**, 25.4 min. Gain principal vs run id=2 obsolète : visual_format REELS **+4.6 pts** (46.2 → 50.8) grâce à Gemini 3 Flash Preview qui perçoit mieux les vidéos. Patterns d'erreur identiques (post_news ← mood, post_chiffre ← news, etc.) — confirme que ce sont des limitations des prompts v0 que HILPO doit corriger en simulation. Coût stocké en BDD via `simulation_runs.total_cost_usd`. Phase 2 ✅. Docs synchronisés (evaluation, project, phases). |
 | 2.27 | 2026-04-06 | Switch descripteur (FEED+REELS) vers `google/gemini-3-flash-preview` après diagnostic des 5 posts échoués au run id=6 (Qwen 3.5 Flash limite carousel ~8 images, Gemini 2.5 Flash via Google AI Studio instable sous concurrence). Validation empirique : 18/18 sous concurrence (10 parallèles), 3/3 carousels 20 slides, audio détecté correctement (commit `7e352ab`). Coût ~$0.50/M (vs $0.065-0.30/M précédemment), justifié par la fiabilité. Classifieurs restent sur Qwen 3.5 Flash text-only via tool calling. Aussi fix : compteur `error_count` propagé dans `async_classify_batch.on_progress(done, total, errors)`. Docs synchronisés (architecture, stack, evaluation, agent_perspective). |
 | 2.26 | 2026-04-06 | Fix Qwen tool calling : revert des 3 classifieurs de `response_format=json_schema` strict (cassé sur enums binaires) vers tool calling forcé via `tools=[tool] + tool_choice="auto"` (commit `0b3bd8b`). Ajout de `build_classifier_tool` et `parse_classifier_arguments`. Le descripteur garde `json_schema`. Validation empirique 18/18 ✅. Prompts v0 inchangés (migration 006 toujours valide). Docs synchronisés (architecture, evaluation, agent_perspective). |
