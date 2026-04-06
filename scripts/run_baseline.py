@@ -305,10 +305,7 @@ async def main():
     # 5. Classification async
     log.info("Classification en cours...")
 
-    errors = 0
-
-    def on_progress(done, total):
-        nonlocal errors
+    def on_progress(done: int, total: int, errors: int) -> None:
         elapsed = time.monotonic() - t0
         rate = done / elapsed if elapsed > 0 else 0
         eta = (total - done) / rate if rate > 0 else 0

@@ -287,7 +287,7 @@ async def async_classify_batch(
         labels_by_scope: {scope: {"category": [...], "visual_format": [...], "strategy": [...]}}.
         max_concurrent_api: Max d'appels API simultanés.
         max_concurrent_posts: Max de posts traités en parallèle.
-        on_progress: Callback(done, total) appelé après chaque post.
+        on_progress: Callback(done, total, errors) appelé après chaque post.
     """
     client = get_async_client()
     semaphore = asyncio.Semaphore(max_concurrent_api)
@@ -295,9 +295,10 @@ async def async_classify_batch(
 
     results: list[PipelineResult | None] = [None] * len(posts)
     done_count = 0
+    error_count = 0
 
     async def _process_one(idx: int, post: PostInput):
-        nonlocal done_count
+        nonlocal done_count, error_count
         async with post_semaphore:
             scope = post.media_product_type.upper()
             prompts = prompts_by_scope[scope]
@@ -315,10 +316,11 @@ async def async_classify_batch(
                 )
                 results[idx] = result
             except Exception as e:
+                error_count += 1
                 log.error("Post %s échoué: %s", post.ig_media_id, e)
             done_count += 1
             if on_progress:
-                on_progress(done_count, len(posts))
+                on_progress(done_count, len(posts), error_count)
 
     await asyncio.gather(*[_process_one(i, p) for i, p in enumerate(posts)])
     return [r for r in results if r is not None]
