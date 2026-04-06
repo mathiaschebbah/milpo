@@ -619,6 +619,9 @@ def main():
     total_api_calls = 0
     live_cost_estimate_usd = 0.0
     rewrite_count = 0
+    promoted_rewrite_count = 0
+    rollback_rewrite_count = 0
+    skipped_rewrite_count = 0
     skipped_classification_posts = 0
     failed_rewrite_attempts = 0
 
@@ -835,6 +838,7 @@ def main():
                     eval_posts = post_inputs[cursor:eval_end]
 
                     if len(eval_posts) < 5:
+                        skipped_rewrite_count += 1
                         log.warning("[REWRITE #%d] Pas assez de posts pour évaluer (%d). Skip.", rewrite_count, len(eval_posts))
                         error_buffer.clear()
                         continue
@@ -881,6 +885,7 @@ def main():
                     )
 
                     if promoted:
+                        promoted_rewrite_count += 1
                         promote_prompt(conn, target_agent, target_scope, candidate_id)
 
                         prompt_state.instructions[current_key] = rewrite_result.new_instructions
@@ -893,6 +898,7 @@ def main():
                         log.info("[REWRITE #%d] >>> PROMOTED (v%d → v%d %s/%s) <<<",
                                  rewrite_count, new_version - 1, new_version, target_agent, target_scope or "all")
                     else:
+                        rollback_rewrite_count += 1
                         consecutive_failures += 1
                         log.info("[REWRITE #%d] Incumbent %.1f%% vs Candidate %.1f%% (Δ=%.1f%%)",
                                  rewrite_count, inc_acc * 100, cand_acc * 100, delta_actual * 100)
@@ -942,10 +948,12 @@ def main():
         for (agent, scope), version in sorted(prompt_state.versions.items()):
             log.info("    %s/%s : v%d", agent, scope or "all", version)
         log.info("")
-        log.info("  Rewrites       : %d tentés, %d promus, %d échoués",
+        log.info("  Rewrites       : %d tentés, %d promus, %d rollback, %d erreurs rewriter, %d skip eval",
                  rewrite_count,
-                 sum(prompt_state.versions.values()),
-                 failed_rewrite_attempts)
+                 promoted_rewrite_count,
+                 rollback_rewrite_count,
+                 failed_rewrite_attempts,
+                 skipped_rewrite_count)
         log.info("")
         log.info("  Accuracy (tout le dev scoré) :")
         log.info("    Catégorie      : %.1f%% (%d/%d)", metrics["accuracy_category"] * 100, matches_by_axis["category"], n_processed)
