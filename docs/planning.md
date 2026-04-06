@@ -31,13 +31,13 @@
 | Matin (1h) | Investigation bug descripteurs (5 stratégies REELS testées + limite Qwen carousels), switch FEED+REELS vers Gemini 3 Flash Preview | ✅ commits `7e352ab` + `d021e00` |
 | Matin (~30min) | Relance baseline B0 (`uv run python scripts/run_baseline.py`) | ✅ run id=7, **437/437 (100%), 86.7% / 65.4% / 94.5%, $2.68** |
 | Matin (~30min) | Documentation des résultats B0 + table accuracy par format (22 formats) | ✅ commits `1e8ff02` + `394f5f6` (v2.28 + v2.29) |
-| Après-midi (~5h) | Annoter ~750 posts dev (objectif compensé : matin pris par les fixes pipeline) | ⬜ à faire |
+| Après-midi (~5h) | Annoter ~750 posts dev (objectif réaliste révisé pour garder une charge soutenable) | ⬜ à faire |
 | Soir (2h) | Lancer simulation HILPO sur les posts annotés → premiers résultats | ⬜ à faire |
 
 ### Mar 7 — Fin annotation + simulation
 | Créneau | Activité |
 |---------|----------|
-| Matin (3h) | Annoter ~400 posts dev (fin des ~1 460 restants) |
+| Matin (3h) | Annoter ~709 posts dev (fin des ~1 459 restants après l'objectif du lundi) |
 | Après-midi (2h) | Kappa intra-annotateur (re-swipe 50 posts à l'aveugle) |
 | Après-midi (1h) | Simulation finale + éval vN sur test |
 | Soir (2h) | Analyser résultats, ablations (rejouer avec B=1, 10, 50) |
@@ -117,10 +117,10 @@
 
 | Jour | Posts | Cumulé | Phase active |
 |------|-------|--------|--------------|
-| Lun 6 | ~1 050 | ~1 050 dev | Annotation toute la journée + simulation le soir |
-| Mar 7 | ~400 | ~1 460 dev | Fin annotation + kappa + simulation finale + ablations |
+| Lun 6 | ~750 | ~854 dev | Annotation prioritaire toute la journée, simulation seulement si temps restant |
+| Mar 7 | ~709 | ~1 563 dev | Fin annotation + kappa + simulation finale + ablations |
 
-Note : le split test (437) est déjà annoté. L'annotation dev est découplée de l'optimisation — on annote d'abord, on simule ensuite. Ablations triviales (rejouer avec différents B).
+Note : le split test (437) est déjà annoté. Le split dev compte déjà 104 annotations héritées de la Phase 1, d'où le cumul de `~854` après une cible de `~750` le lundi. L'annotation dev est découplée de l'optimisation — on annote d'abord, on simule ensuite. Ablations triviales (rejouer avec différents B).
 
 ## Appels API estimés
 
