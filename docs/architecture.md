@@ -41,20 +41,26 @@ Post → Router → détecte le type (FEED/REELS)
 
 ### Modèles via OpenRouter
 
-| Rôle | Scope | Modèle | Modalités | Prix input/1M |
-|------|-------|--------|-----------|---------------|
-| Descripteur | FEED | Qwen 3.5 Flash | image + vidéo + texte | $0.065 |
-| Descripteur | REELS | Gemini 2.5 Flash | image + vidéo + audio + texte | $0.30 |
-| Classifieurs (×3) | tous | Qwen 3.5 Flash | texte seul | $0.065 |
+| Rôle | Scope | Modèle | Modalités | Prix input/1M | Prix output/1M |
+|------|-------|--------|-----------|---------------|----------------|
+| Descripteur | FEED | Gemini 3 Flash Preview | image + vidéo + texte | $0.50 | $3.00 |
+| Descripteur | REELS | Gemini 3 Flash Preview | image + vidéo + audio + texte | $0.50 | $3.00 |
+| Classifieurs (×3) | tous | Qwen 3.5 Flash | texte seul | $0.065 | $0.065 |
 
-Choix du modèle REELS : Gemini 2.5 Flash est le seul modèle pas cher qui gère l'audio — nécessaire pour `reel_voix_off` et les formats avec narration.
+**Choix du descripteur** : Gemini 3 Flash Preview pour les deux scopes (commit `7e352ab`, 2026-04-06). Validation empirique :
+- Carousels jusqu'à 20 slides (max Instagram actuel) : ✓
+- Vidéos REELS via URL GCS signée : ✓
+- Détection audio (voix off, interview, musique) : ✓
+- Stabilité sous concurrence (10 parallèles, 2 vagues) : 18/18 ✓
+
+Alternatives écartées : **Qwen 3.5 Flash** (limite carousel à ~8 images, raw vide à 10+), **Gemini 2.5 Flash via Google AI Studio** (réponses vides + 503 *high demand* sous concurrence). Coût ~27× plus élevé que Qwen mais ~$50-130 sur tout le projet, acceptable pour la fiabilité.
 
 #### Mécanisme d'output structuré
 
 Le descripteur et les classifieurs n'utilisent **pas** la même feature OpenRouter pour contraindre leur sortie :
 
-- **Descripteur** : `response_format=json_schema` (strict). L'output est un objet complexe avec ~25 champs (booléens, strings, listes), aucun enum binaire — Qwen et Gemini honorent correctement le schema dans ce cas.
-- **Classifieurs (×3)** : **tool calling** via `tools=[tool] + tool_choice="auto"`. L'output est forcé à un objet `{label, confidence}` où `label` est un enum fermé scopé. Tool calling est utilisé plutôt que `response_format=json_schema` parce que les providers Qwen 3.5 Flash sur OpenRouter n'honorent pas réellement json_schema sur les enums binaires (ils renvoient un float `-1.5` au lieu d'un objet). Tool calling est universellement supporté par tous les providers OpenRouter, c'est l'approche éprouvée pour les classifications à enum fermé.
+- **Descripteur** (Gemini 3 Flash Preview) : `response_format=json_schema` (strict). L'output est un objet complexe avec ~25 champs (booléens, strings, listes), aucun enum binaire — Gemini honore correctement le schema dans ce cas.
+- **Classifieurs (×3)** (Qwen 3.5 Flash text-only) : **tool calling** via `tools=[tool] + tool_choice="auto"`. L'output est forcé à un objet `{label, confidence}` où `label` est un enum fermé scopé. Tool calling est utilisé plutôt que `response_format=json_schema` parce que les providers Qwen 3.5 Flash sur OpenRouter n'honorent pas réellement json_schema sur les enums binaires (ils renvoient un float `-1.5` au lieu d'un objet). Tool calling est universellement supporté par tous les providers OpenRouter, c'est l'approche éprouvée pour les classifications à enum fermé.
 
 ### Schema du descripteur
 

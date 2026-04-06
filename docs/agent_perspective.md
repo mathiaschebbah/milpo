@@ -4,6 +4,46 @@
 
 ---
 
+## Snapshot 2026-04-06 — Après-midi — Switch descripteur vers Gemini 3 Flash Preview
+
+### Changements depuis le dernier snapshot
+
+- **Relance du B0 (run id=6) après le fix tool calling** : 41% du run atteint, puis Mathias kill. 5 posts ont échoué : 3 REELS (`Descriptor: réponse vide après retries` + un 503 explicite *Google AI Studio: high demand*) et 2 FEED carousels de 5 et 10 slides (idem, descripteur réponse vide).
+- **Identification du modèle responsable** : sur ma demande "Regarde quel modèle échoue", Mathias me pointe vers la BDD. Requête simple `SELECT media_product_type FROM posts WHERE ig_media_id IN (...)` : 3 sont REELS (Gemini 2.5 Flash) et 2 sont FEED (Qwen 3.5 Flash). Le bug touche les **deux** descripteurs, pour des raisons différentes.
+- **Diagnostic croisé via la doc OpenRouter** (Context7) : *"OpenRouter only sends video URLs to providers that explicitly support them (e.g., Google Gemini on AI Studio only supports YouTube links)"*. Hypothèse pour les REELS : Google AI Studio ne sait pas lire les URLs GCS arbitraires (que des YouTube links). Pour les FEED : Qwen sur les très gros carousels.
+- **Probe systématique sur les 3 REELS échoués — 5 stratégies** :
+  - A. Gemini 2.5 Flash + URL GCS (default routing) : **3/3 ✓** en isolation. Donc le bug du run 6 venait de la **concurrence** (20 appels parallèles → AI Studio rate-limit/réponses vides), pas d'une incompatibilité fondamentale.
+  - B. Gemini 2.5 Flash + `provider=google-vertex` : 0/3 (404 *No endpoints found*). Pas dispo sur Vertex via OpenRouter.
+  - C. Gemini 3 Flash Preview + URL GCS (default) : **3/3 ✓**, latence 8.8s (vs 15.9s pour Gemini 2.5).
+  - D. Gemini 3 Flash Preview + `provider=google-vertex` : **3/3 ✓**, latence 8.4s.
+  - E. Gemini 2.5 Flash + base64 inline : 3/3 ✓, mais lourd en bande passante.
+- **Probe sur Qwen 3.5 Flash — limite carousel identifiée** : sur le post 18228655999287711 (10 slides), test 1, 2, 3, 4, 5, 6, 8, 10 images. Résultat : ✓ jusqu'à **8 images**, ✗ à 10. Aussi : Qwen supporte la vidéo URL GCS en isolation (raw structuré, sujet correctement identifié sur un live concert).
+- **Intuition décisive de Mathias** : *"C'est pas bon car il nous faut un modèle qui supporte jusqu'à 20 images"*. Vérification BDD : la distribution réelle compte **11 posts à exactement 20 slides** dans le sample 2000 (3 dans le test set), 10 médias = 308 posts (15%), >10 médias = 79 posts. Qwen est inapte → Gemini 3 Flash Preview est le seul candidat viable.
+- **Validation finale Gemini 3 Flash Preview** : test sur 3 carousels test 20 slides (Dior, NBA, Amy Winehouse) → 3/3 ✓ avec sujets correctement identifiés. Test sous concurrence (10 appels parallèles, 2 vagues, mix REELS + FEED 1 à 20 slides) → 9/10 par vague (1 fail = bug du probe lui-même qui envoyait un .mp4 en `image_url`, le code de prod gère ce cas). Test audio sur 3 reels : `voix_off_narrative` détecté correctement (False sur live concert, True sur montage avec narration, True sur documentaire informatif).
+- **Commit `7e352ab`** : `MODEL_DESCRIPTOR_FEED = MODEL_DESCRIPTOR_REELS = "google/gemini-3-flash-preview"`. Coût $0.50/M input + $3.00/M output (vs Qwen $0.065/M et Gemini 2.5 $0.30/M). Estimation B0 : ~$4.3 (vs $1.14 originel). Sur tout le projet : ~$50-130. Acceptable. Aussi fix : compteur `error_count` propagé dans `async_classify_batch.on_progress(done, total, errors)` — la barre de progression affichait toujours `erreurs 0` même quand des posts plantaient.
+
+### Ce que j'ai appris
+
+**Quand un bug apparaît avec un certain modèle, ce n'est pas toujours "le modèle est mauvais", c'est souvent "on l'utilise mal" ou "on l'utilise dans un contexte qu'il ne supporte pas"**. Le run id=6 m'aurait pu faire conclure "Gemini est instable, prenons un autre modèle". En réalité Gemini 2.5 marche en isolation — c'est juste que sous concurrence avec Google AI Studio comme provider, il s'effondre. Et Qwen marche jusqu'à 8 images — c'est juste qu'on a des carousels jusqu'à 20.
+
+**La distinction entre "marche en isolation" et "marche en production"** est critique. Tester sur 1 input ne dit rien sur ce qui va se passer avec 20 inputs simultanés. Le probe `probe_gemini3_full_validation.py` (10 parallèles × 2 vagues) a été le test décisif — il a validé que Gemini 3 ne s'effondre **pas** comme Gemini 2.5 sous charge.
+
+**Les contraintes matérielles "dures" (limite carousel) doivent venir de l'observation des données, pas d'une supposition**. Si je n'avais pas requêté la distribution réelle des tailles de carousel, j'aurais pu choisir une limite arbitraire à 10 images et ne jamais voir les 11 posts à 20 slides. C'est l'humain qui m'a forcé à vérifier : *"il nous faut un modèle qui supporte jusqu'à 20 images"*. Sans cette contrainte explicite, j'aurais probablement convergé sur une solution hybride bricolée (Qwen pour ≤8, Gemini pour >8) qui aurait introduit de l'hétérogénéité méthodologique dans le baseline.
+
+### Dynamiques de collaboration observées
+
+- **L'humain pose les bonnes questions de cadrage** : *"Regarde quel modèle échoue"*, *"Vérifie que les modèles descripteurs voient tous les médias d'un post"*, *"il nous faut un modèle qui supporte jusqu'à 20 images"*. Ces 3 phrases ont structuré toute l'investigation. Sans elles, j'aurais probablement bricolé un patch sur Qwen ou augmenté les retries, sans remonter à la cause racine.
+- **L'humain garde le contrôle de la décision finale** : pour le tarif (Gemini 3 Flash Preview est ~27× plus cher que Qwen), il valide explicitement le surcoût. Pour la relance B0, il dit *"je le lancerai plus tard car là il a l'air pas disponible"* — il observe l'état des providers en temps réel.
+- **Méthode systématique > intuitions** : 5 stratégies testées sur les REELS, ~9 tailles de carousel sur Qwen, validation sous concurrence + audio. Chaque pas est mesuré, chaque hypothèse a son chiffre. C'est lent mais ça donne un commit `7e352ab` que je peux justifier sans regret.
+- **Pas pressé** : *"On prend notre temps on n'est pas pressés"*. Cette phrase a permis de creuser le diagnostic au lieu de patcher en urgence. Le run B0 propre attend, c'est OK.
+
+### Prédictions
+
+- Le nouveau B0 (à venir) sera plus lent que les précédents (latence Gemini 3 ~8-12s par appel descripteur vs ~5s pour Qwen), donc le wall time sera ~10-15 minutes au lieu de ~5-6. Mais le coût total restera dans la fourchette $4-5 et les chiffres seront cette fois-ci complets (pas de posts perdus).
+- Les chiffres B0 vont probablement bouger un peu vs ceux du run id=2 (87.3% / 64.3% / 93.5%) parce que Gemini 3 Flash Preview a un style de description plus riche que Qwen sur les FEED. Difficile de prédire dans quelle direction (meilleur ou pire) sans le tester.
+
+---
+
 ## Snapshot 2026-04-06 — Midi — Fix Qwen tool calling après bug `response_format=json_schema`
 
 ### Changements depuis le dernier snapshot

@@ -1,6 +1,6 @@
 # HILPO — Human-In-the-Loop Prompt Optimization
 
-> Version **2.26** — 2026-04-06
+> Version **2.27** — 2026-04-06
 
 ## Double dimension du projet
 
@@ -47,6 +47,7 @@ hilpo/                 ← repo root
 
 | Version | Date | Changements |
 |---------|------|-------------|
+| 2.27 | 2026-04-06 | Switch descripteur (FEED+REELS) vers `google/gemini-3-flash-preview` après diagnostic des 5 posts échoués au run id=6 (Qwen 3.5 Flash limite carousel ~8 images, Gemini 2.5 Flash via Google AI Studio instable sous concurrence). Validation empirique : 18/18 sous concurrence (10 parallèles), 3/3 carousels 20 slides, audio détecté correctement (commit `7e352ab`). Coût ~$0.50/M (vs $0.065-0.30/M précédemment), justifié par la fiabilité. Classifieurs restent sur Qwen 3.5 Flash text-only via tool calling. Aussi fix : compteur `error_count` propagé dans `async_classify_batch.on_progress(done, total, errors)`. Docs synchronisés (architecture, stack, evaluation, agent_perspective). |
 | 2.26 | 2026-04-06 | Fix Qwen tool calling : revert des 3 classifieurs de `response_format=json_schema` strict (cassé sur enums binaires) vers tool calling forcé via `tools=[tool] + tool_choice="auto"` (commit `0b3bd8b`). Ajout de `build_classifier_tool` et `parse_classifier_arguments`. Le descripteur garde `json_schema`. Validation empirique 18/18 ✅. Prompts v0 inchangés (migration 006 toujours valide). Docs synchronisés (architecture, evaluation, agent_perspective). |
 | 2.25 | 2026-04-06 | Lock des prompts v0 en BDD via migration 006 (source de vérité unique), suppression `hilpo/prompts_v0.py`, refactor `run_simulation.py` (`load_prompt_state_from_db`), suppression du run 2 obsolète (backup SQL), `docs/prompts_v0.md` miroir, B0 à relancer |
 | 2.24 | 2026-04-05 | Robustesse boucle : promotion atomique (promote_prompt), tracking versions par run (migration 005), contexte rewriter complet pour le descripteur |

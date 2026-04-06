@@ -46,13 +46,18 @@ Chaque run est stocké dans `simulation_runs` avec sa config, ses métriques, et
 > ---
 > ⚠️ **OBSOLÈTE — en attente de relance**
 >
-> Les résultats ci-dessous ont été obtenus le 2026-04-05 avec une configuration intermédiaire qui a depuis été corrigée. Trois événements successifs invalident le run id=2 :
+> Les résultats ci-dessous ont été obtenus le 2026-04-05 avec une configuration intermédiaire qui a depuis été corrigée. Quatre événements successifs invalident le run id=2 :
 >
 > 1. Commit `d2e84e9` (2026-04-05) — *Enforce strict JSON schemas* — a migré le pipeline vers `response_format=json_schema` strict pour les 6 outputs (descripteur + 3 classifieurs) et a réécrit les prompts v0 pour retirer les références au tool use.
 > 2. Le 2026-04-06 matin : les prompts v0 modifiés au commit `d2e84e9` ont été lockés en BDD via la migration [`006_seed_prompts_v0.sql`](../apps/backend/migrations/006_seed_prompts_v0.sql) (avant le run id=2 utilisait les anciens prompts en BDD, donc déjà incohérent).
-> 3. Commit `0b3bd8b` (2026-04-06) — *Revert classifiers to tool calling* — a fixé un bug Qwen 3.5 Flash : `response_format=json_schema` strict n'est pas réellement honoré par les providers Qwen sur les enums binaires (le classifieur strategy renvoyait un float `-1.5` au lieu d'un objet). Les 3 classifieurs sont revenus à l'API tool calling. Le descripteur garde `json_schema` (pas d'enum binaire dans son output).
+> 3. Commit `0b3bd8b` (2026-04-06) — *Revert classifiers to tool calling* — a fixé un bug Qwen 3.5 Flash : `response_format=json_schema` strict n'est pas réellement honoré par les providers Qwen sur les enums binaires (le classifieur strategy renvoyait un float `-1.5` au lieu d'un objet). Les 3 classifieurs sont revenus à l'API tool calling. Le descripteur garde `json_schema`.
+> 4. Commit `7e352ab` (2026-04-06) — *Switch descriptor to Gemini 3 Flash Preview* — la relance B0 (run id=6) a échoué sur 5 posts à 41% du run : 3 REELS (Gemini 2.5 Flash via Google AI Studio renvoyait des réponses vides ou des 503 *high demand* sous concurrence) et 2 carousels FEED de 5 et 10 slides (Qwen 3.5 Flash a une limite carousel à ~8 images, raw vide à 10+). Investigation systématique : 5 stratégies REELS testées (Gemini 2.5 default ✓ en isolation mais échec en concurrence, vertex 404, Gemini 3 Flash Preview ✓, vertex ✓, base64 ✓), 3 carousels test 20 slides validés sur Gemini 3, audio détecté correctement. Les deux descripteurs (FEED et REELS) sont passés à `google/gemini-3-flash-preview` qui marche pour tout. Coût ~$0.50/M (vs $0.065-0.30/M précédemment), justifié par la fiabilité indispensable pour le baseline.
 >
-> **Configuration courante (à utiliser pour le nouveau B0)** : descripteur = `response_format=json_schema`, classifieurs = `tools=[tool] + tool_choice="auto"`. Prompts v0 = ceux lockés via migration 006 (inchangés depuis). Run id=2 supprimé de la BDD, backup SQL dans `data/backups/run_2_2026-04-06_11-32.sql`.
+> **Configuration courante (à utiliser pour le nouveau B0)** :
+> - Descripteur FEED+REELS : `google/gemini-3-flash-preview` avec `response_format=json_schema`
+> - Classifieurs (×3) : `qwen/qwen3.5-flash-02-23` avec `tools=[tool] + tool_choice="auto"`
+> - Prompts v0 : ceux lockés via migration 006 (inchangés depuis)
+> - Runs supprimés de la BDD : id=2 (backup SQL `data/backups/run_2_2026-04-06_11-32.sql`), id=4 et id=5 (vides), id=6 (vide, killé par l'utilisateur après détection des bugs descripteurs).
 >
 > Un nouveau B0 doit être lancé (`uv run python scripts/run_baseline.py`). Les chiffres, patterns d'erreur et coûts listés dans cette section restent ici à titre historique jusqu'à ce que les nouveaux résultats soient disponibles.
 > ---

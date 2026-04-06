@@ -5,9 +5,9 @@
 | Backend | FastAPI (Python 3.12) |
 | Frontend | Vite + React + TypeScript + Tailwind v4 + shadcn/ui |
 | Base de données | PostgreSQL 17 (Docker, port 5433) |
-| Descripteur FEED | Qwen 3.5 Flash via OpenRouter (image + vidéo + texte) |
-| Descripteur REELS | Gemini 2.5 Flash via OpenRouter (image + vidéo + audio + texte) |
-| Classifieurs (×3) | Qwen 3.5 Flash via OpenRouter (texte seul) |
+| Descripteur FEED | Gemini 3 Flash Preview via OpenRouter ($0.50/M in, $3.00/M out — image + vidéo + texte, jusqu'à 20 slides) |
+| Descripteur REELS | Gemini 3 Flash Preview via OpenRouter ($0.50/M in, $3.00/M out — image + vidéo + audio + texte, détection voix off) |
+| Classifieurs (×3) | Qwen 3.5 Flash via OpenRouter ($0.065/M — texte seul, tool calling forcé) |
 | Rewriter (Phase 3) | OpenAI GPT-5.4 via OpenRouter |
 | API unifiée | OpenRouter (`/api/v1/chat/completions`, compatible OpenAI SDK) |
 | Gestion des dépendances | uv |
