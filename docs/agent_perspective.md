@@ -4,6 +4,39 @@
 
 ---
 
+## Snapshot 2026-04-06 — Midi — Fix Qwen tool calling après bug `response_format=json_schema`
+
+### Changements depuis le dernier snapshot
+
+- **Bug détecté en lançant le B0** : Mathias relance le baseline (`uv run python scripts/run_baseline.py`, run id=5) avec les prompts v0 fraîchement lockés via la migration 006. Quelques secondes après, la console crache des erreurs récurrentes : `Classifier strategy JSON invalide (attempt 1): 1 validation error for ClassifierDecision Input should be an object [type=model_type, input_value=-1.5, input_type=float]`. À 3 erreurs en 17 secondes, le run est inutilisable.
+- **Diagnostic empirique** : un probe isolé (`scripts/_debug/probe_strategy_classifier.py`) appelle Qwen 3.5 Flash directement sur 5 scénarios synthétiques × 3 essais. Résultat : **15/15 fail** — toutes les sorties sont des floats négatifs (`-1.5`, `-1.0`, `-1.5e-322`...). Hypothèse : Qwen interprète l'enum binaire `{Organic, Brand Content}` comme un problème de classification binaire à scorer, et renvoie un logprob au lieu d'un objet.
+- **Cause racine identifiée par l'humain** : Mathias formule l'intuition décisive — *"Avant on avait pas ce bug, peut-être on utilise mal l'API OpenRouter tout simplement"*. C'est ce qui m'a poussé à regarder l'historique git et trouver le commit `d2e84e9` (5 avril, *Enforce strict JSON schemas for HILPO outputs*) qui avait migré les classifieurs de tool calling vers `response_format=json_schema` strict. Le run id=2 (87.3% / 64.3% / 93.5%, du 5 avril) marchait avec l'ancien code en tool calling.
+- **Confirmation par la doc OpenRouter** (récupérée via Context7 et copiée par Mathias) : `response_format=json_schema` est supporté par "GPT-4o+, Gemini, Anthropic Sonnet 4.5+, **most** open-source models". Le "most" cache que les providers Qwen 3.5 Flash sur OpenRouter ne l'honorent pas réellement sur les enums binaires. Recommandation officielle : ajouter `require_parameters: true` côté provider pour forcer le routage vers un provider qui le supporte. Mais aucun provider Qwen 3.5 Flash ne supporte json_schema strict — donc cette piste ne marche pas pour notre stack.
+- **Fix appliqué (commit `0b3bd8b`)** : retour à l'API tool calling pour les 3 classifieurs. `tools=[tool] + tool_choice="auto"` (les variantes `"required"` et `{"type":"function","function":{"name":...}}` sont rejetées en 404 par les providers Qwen). Avec un seul tool fourni, "auto" suffit à garantir l'appel. Le descripteur garde `response_format=json_schema` qui marche pour son output complexe sans enum binaire. **Validation empirique : 18/18 succès** sur strategy/category/visual_format.
+- **Prompts v0 inchangés** : la migration 006 reste valide, aucune migration 007 nécessaire. Avec `tool_choice="auto"` et un seul tool fourni, Qwen détecte qu'il doit appeler `classify_<axis>` même si le prompt v0 ne mentionne plus explicitement le tool. Le format de sortie est garanti par la déclaration du tool, pas par le contenu du system prompt.
+
+### Ce que j'ai appris
+
+Une feature documentée par OpenRouter ne garantit pas qu'elle marche sur tous les providers. Le "most" dans *"supported by most open-source models"* est un trou silencieux : pas d'erreur côté API, le modèle "accepte" le `response_format=json_schema`, mais le respecte mal en pratique. Sans validation empirique, on ne le voit jamais. C'est exactement le piège que la migration `d2e84e9` a posé : elle paraissait être une amélioration (passer à json_schema strict, plus moderne) mais elle a régressé silencieusement.
+
+L'intuition de Mathias *"on utilise mal l'API"* a été plus utile que toute mon analyse a priori. J'avais commencé par chercher des patches dans le code de parsing (parser plus tolérant, mode json_object, etc.) sans remettre en question le design fondamental. Sa question m'a fait remonter d'un niveau — chercher la vraie source du bug dans l'historique git plutôt que de bricoler le symptôme.
+
+Leçon générale : **quand un bug apparaît après un commit qui était censé "améliorer" quelque chose, regarder d'abord ce que le commit a changé**. Le diff du commit `d2e84e9` (qui touche aux 5 fichiers du pipeline) raconte exactement l'histoire du bug.
+
+### Dynamiques de collaboration observées
+
+- **L'humain est la sentinelle empirique**. C'est en lançant un run réel que Mathias a vu le bug. Aucune analyse statique n'aurait pu le détecter — il fallait que la chaîne complète tourne avec un vrai input pour que Qwen révèle son comportement.
+- **L'humain reformule mieux que moi** quand je suis sur la mauvaise piste. *"Vérifie si les prompts v0 sont bien conformes, si non modifie les avant que je puisse enfin lancer la baseline sereinement"* — cette phrase contenait deux choses utiles : (1) le besoin pratique (lancer la baseline sereinement), (2) une hypothèse implicite (peut-être que les prompts ont besoin d'être modifiés). J'ai choisi de tester d'abord empiriquement plutôt que de modifier sans preuves — les 18/18 succès ont confirmé que les prompts étaient bons et que c'était le code qui était mauvais.
+- **Boundaries claires** : *"C'est moi qui vais relancer le B0, pas toi"*. L'humain garde le contrôle de l'étape qui produit les chiffres finaux du mémoire. L'agent prépare l'environnement (lock prompts, fix bug, valide en probe) mais ne tire pas la photo. C'est cohérent avec la double dimension du projet — la science est de la responsabilité de l'humain, l'instrumentation est partagée.
+- **Workflow `feat:` → `docs:` strict** : 3 commits sur la séquence (lock prompts v0 + sync docs + fix tool use). À chaque commit feat:, le hook check-claude-md.py rappelle de synchroniser les docs. Pas de raccourci.
+
+### Prédictions
+
+- Le nouveau B0 (à venir) sera proche de l'ancien (87.3% / 64.3% / 93.5%) parce que (a) les prompts v0 actuels ne diffèrent qu'en wording mineur de ceux du run id=2, (b) le pipeline tool calling est le même qu'avant `d2e84e9`. Mais "proche" n'est pas "identique" — il faut le mesurer pour pouvoir le citer dans le mémoire.
+- Le prochain bug viendra probablement aussi d'une feature OpenRouter qu'on suppose universellement supportée. Garder le réflexe `git diff <commit> <fichier>` quand un comportement régresse.
+
+---
+
 ## Snapshot 2026-04-06 — Matin — Prompts v0 lockés en BDD via migration SQL
 
 ### Changements depuis le dernier snapshot

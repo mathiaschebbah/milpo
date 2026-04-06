@@ -46,9 +46,15 @@ Chaque run est stocké dans `simulation_runs` avec sa config, ses métriques, et
 > ---
 > ⚠️ **OBSOLÈTE — en attente de relance**
 >
-> Les résultats ci-dessous ont été obtenus le 2026-04-05 avec les prompts v0 **avant** le commit `d2e84e9` (*Enforce strict JSON schemas for HILPO outputs*), qui a modifié les 6 prompts pour supprimer les références au tool use. Le `simulation_run id=2` a été supprimé de la BDD le 2026-04-06 (backup SQL conservé dans `data/backups/run_2_2026-04-06_11-32.sql`). Les prompts v0 ont ensuite été lockés en BDD via la migration [`006_seed_prompts_v0.sql`](../apps/backend/migrations/006_seed_prompts_v0.sql).
+> Les résultats ci-dessous ont été obtenus le 2026-04-05 avec une configuration intermédiaire qui a depuis été corrigée. Trois événements successifs invalident le run id=2 :
 >
-> Un nouveau run B0 doit être lancé (`uv run python scripts/run_baseline.py`) avec les prompts v0 courants. Les chiffres, patterns d'erreur et coûts listés dans cette section resteront ici à titre historique jusqu'à ce que les nouveaux résultats soient disponibles.
+> 1. Commit `d2e84e9` (2026-04-05) — *Enforce strict JSON schemas* — a migré le pipeline vers `response_format=json_schema` strict pour les 6 outputs (descripteur + 3 classifieurs) et a réécrit les prompts v0 pour retirer les références au tool use.
+> 2. Le 2026-04-06 matin : les prompts v0 modifiés au commit `d2e84e9` ont été lockés en BDD via la migration [`006_seed_prompts_v0.sql`](../apps/backend/migrations/006_seed_prompts_v0.sql) (avant le run id=2 utilisait les anciens prompts en BDD, donc déjà incohérent).
+> 3. Commit `0b3bd8b` (2026-04-06) — *Revert classifiers to tool calling* — a fixé un bug Qwen 3.5 Flash : `response_format=json_schema` strict n'est pas réellement honoré par les providers Qwen sur les enums binaires (le classifieur strategy renvoyait un float `-1.5` au lieu d'un objet). Les 3 classifieurs sont revenus à l'API tool calling. Le descripteur garde `json_schema` (pas d'enum binaire dans son output).
+>
+> **Configuration courante (à utiliser pour le nouveau B0)** : descripteur = `response_format=json_schema`, classifieurs = `tools=[tool] + tool_choice="auto"`. Prompts v0 = ceux lockés via migration 006 (inchangés depuis). Run id=2 supprimé de la BDD, backup SQL dans `data/backups/run_2_2026-04-06_11-32.sql`.
+>
+> Un nouveau B0 doit être lancé (`uv run python scripts/run_baseline.py`). Les chiffres, patterns d'erreur et coûts listés dans cette section restent ici à titre historique jusqu'à ce que les nouveaux résultats soient disponibles.
 > ---
 
 Exécuté le 5 avril 2026. simulation_run id=2. 434/437 posts classifiés (3 échoués — descripteur réponse vide).

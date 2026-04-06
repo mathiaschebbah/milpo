@@ -49,6 +49,13 @@ Post → Router → détecte le type (FEED/REELS)
 
 Choix du modèle REELS : Gemini 2.5 Flash est le seul modèle pas cher qui gère l'audio — nécessaire pour `reel_voix_off` et les formats avec narration.
 
+#### Mécanisme d'output structuré
+
+Le descripteur et les classifieurs n'utilisent **pas** la même feature OpenRouter pour contraindre leur sortie :
+
+- **Descripteur** : `response_format=json_schema` (strict). L'output est un objet complexe avec ~25 champs (booléens, strings, listes), aucun enum binaire — Qwen et Gemini honorent correctement le schema dans ce cas.
+- **Classifieurs (×3)** : **tool calling** via `tools=[tool] + tool_choice="auto"`. L'output est forcé à un objet `{label, confidence}` où `label` est un enum fermé scopé. Tool calling est utilisé plutôt que `response_format=json_schema` parce que les providers Qwen 3.5 Flash sur OpenRouter n'honorent pas réellement json_schema sur les enums binaires (ils renvoient un float `-1.5` au lieu d'un objet). Tool calling est universellement supporté par tous les providers OpenRouter, c'est l'approche éprouvée pour les classifications à enum fermé.
+
 ### Schema du descripteur
 
 Le descripteur retourne un JSON structuré avec deux niveaux :
