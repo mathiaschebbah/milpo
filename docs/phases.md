@@ -19,7 +19,7 @@
 - Schema features JSON (résumé visuel libre + champs structurés)
 - 6 prompts v0 écrits à la main (2 descripteur + 3 classifieurs + 1 stratégie)
 - B0 baseline : pipeline batch async sur le split test (437 posts)
-- **Statut** : ✅ terminée — B0 exécuté sur 434/437 posts test (3 échoués). Résultats : catégorie 87.3%, visual_format 64.3%, stratégie 93.5%. Coût : $1.14. simulation_run id=2.
+- **Statut** : ⚠️ à relancer. Le B0 d'origine (run id=2, 87.3% / 64.3% / 93.5%, $1.14) utilisait les prompts v0 avant le commit `d2e84e9` (passage au JSON schema strict). Le run 2 a été supprimé de la BDD le 2026-04-06 et les prompts v0 ont été verrouillés en BDD via la migration [`006_seed_prompts_v0.sql`](../apps/backend/migrations/006_seed_prompts_v0.sql). Backup SQL conservé dans `data/backups/run_2_2026-04-06_11-32.sql`. Nouveau B0 à lancer avec les prompts v0 courants (ids 7-12 en BDD).
 
 ## Phase 3 — Rewriter agentique + simulation
 - Agent rewriter qui propose de nouvelles versions des instructions I_t
@@ -31,4 +31,5 @@
 - Ablations triviales : rejouer avec B=1, 10, 30, 50 sans ré-annoter
 - Contribution principale du mémoire
 - Robustesse : promotion atomique (`promote_prompt`), tracking versions par run (`simulation_run_id`), contexte rewriter complet pour le descripteur
-- **Statut** : implémenté et durci — rewriter.py + run_simulation.py fonctionnels, migration 005 appliquée. En attente des annotations dev pour le run complet.
+- Prompts v0 comme état initial : `run_simulation.py` charge les 6 prompts uniquement depuis la BDD via `load_prompt_state_from_db(conn)` (plus de hardcoding côté Python)
+- **Statut** : implémenté et durci — rewriter.py + run_simulation.py fonctionnels, migrations 005 et 006 appliquées. En attente des annotations dev pour le run complet.

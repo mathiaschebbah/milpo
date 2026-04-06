@@ -34,4 +34,4 @@ HILPO se distingue des travaux existants sur **quatre axes** :
 
 - **Deadline** : 18 avril 2026
 - **Livrable** : rapport de mémoire + code fonctionnel + résultats expérimentaux
-- **État au 5 avril 2026** : Phase 1 ✅ (541 annotations, test complet). Phase 2 ✅ (pipeline descripteur + classifieurs, B0 : 87.3% / 64.3% / 93.5%). Phase 3 ✅ implémentée côté code (rewriter + simulation prequential), run complet sur le dev en attente des annotations.
+- **État au 6 avril 2026** : Phase 1 ✅ (541 annotations, test complet). Phase 2 ✅ côté code (pipeline descripteur + classifieurs), **B0 à relancer** — l'ancien baseline (87.3% / 64.3% / 93.5%) utilisait les prompts v0 avant le commit `d2e84e9` (passage au JSON schema strict), les prompts v0 sont maintenant lockés en BDD via la migration [`006_seed_prompts_v0.sql`](docs/../apps/backend/migrations/006_seed_prompts_v0.sql) et le nouveau run B0 est en attente. Phase 3 ✅ implémentée côté code (rewriter + simulation prequential, `load_prompt_state_from_db` — plus de hardcoding), run complet sur le dev en attente des annotations.

@@ -1,6 +1,6 @@
 # HILPO — Human-In-the-Loop Prompt Optimization
 
-> Version **2.24** — 2026-04-05
+> Version **2.25** — 2026-04-06
 
 ## Double dimension du projet
 
@@ -17,6 +17,7 @@
 - [Donnees](docs/data.md) — structure des CSV, axes de classification, taxonomie
 - [Phases](docs/phases.md) — phases de dev et avancement
 - [Evaluation](docs/evaluation.md) — protocole, metriques, tiers de priorite, checklist recevabilite
+- [Prompts v0](docs/prompts_v0.md) — référence humaine miroir des 6 prompts v0 seedés par la migration 006
 - [Reproduire](REPRODUCE.md) — guide de reproduction des résultats (jury/reviewers)
 - [Conventions](docs/conventions.md) — règles de collaboration et standards
 - [Planning](docs/planning.md) — calendrier jour par jour avec creneaux, 5-18 avril 2026
@@ -46,6 +47,7 @@ hilpo/                 ← repo root
 
 | Version | Date | Changements |
 |---------|------|-------------|
+| 2.25 | 2026-04-06 | Lock des prompts v0 en BDD via migration 006 (source de vérité unique), suppression `hilpo/prompts_v0.py`, refactor `run_simulation.py` (`load_prompt_state_from_db`), suppression du run 2 obsolète (backup SQL), `docs/prompts_v0.md` miroir, B0 à relancer |
 | 2.24 | 2026-04-05 | Robustesse boucle : promotion atomique (promote_prompt), tracking versions par run (migration 005), contexte rewriter complet pour le descripteur |
 | 2.23 | 2026-04-05 | Phase 3 implémentée : rewriter.py (GPT-5.4), eval.py, run_simulation.py (boucle prequential), migration 004, docs synchronisés |
 | 2.22 | 2026-04-05 | Fix ensure_prompts_v0 dans run_baseline, refs prequential (Dawid 1984, Gama 2014), async_inference dans architecture, backup BDD |

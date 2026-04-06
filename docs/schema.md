@@ -7,6 +7,7 @@ Fichiers :
 - [`003_descriptor_agent.sql`](../apps/backend/migrations/003_descriptor_agent.sql) — ajout `descriptor` à l'enum `agent_type`
 - [`004_rewrite_log_extensions.sql`](../apps/backend/migrations/004_rewrite_log_extensions.sql) — colonnes simulation tracking sur `rewrite_logs`
 - [`005_prompt_version_run_tracking.sql`](../apps/backend/migrations/005_prompt_version_run_tracking.sql) — `simulation_run_id` sur `prompt_versions`, unicité par run
+- [`006_seed_prompts_v0.sql`](../apps/backend/migrations/006_seed_prompts_v0.sql) — seed des 6 prompts v0 (descripteur FEED/REELS + classifieurs catégorie / visual_format × 2 / stratégie). DELETE + INSERT idempotent. Devient la source de vérité unique — `hilpo/prompts_v0.py` supprimé.
 
 ## Tables
 

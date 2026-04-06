@@ -23,10 +23,12 @@
 - ~~B0 sur 437 posts test~~ ✅ (87.3% / 64.3% / 93.5%, $1.14)
 - ~~Phase 3 implémentée~~ ✅ (rewriter.py GPT-5.4, eval.py, run_simulation.py, migration 004)
 
-### Lun 6 — Annotation sprint (3h gagnées grâce à Phase 3 faite en avance)
+### Lun 6 — Lock prompts v0 + annotation sprint
 | Créneau | Activité |
 |---------|----------|
-| Matin (3h) | Annoter ~450 posts dev |
+| Matin (1h) | Lock prompts v0 en BDD via migration 006, refactor `run_simulation.py`, suppression `hilpo/prompts_v0.py`, suppression run 2 obsolète ✅ |
+| Matin (1h) | Relancer le baseline B0 (`uv run python scripts/run_baseline.py`) avec les prompts v0 lockés — remplace les chiffres obsolètes 87.3% / 64.3% / 93.5% |
+| Matin (1h) | Annoter ~150 posts dev |
 | Après-midi (4h) | Annoter ~600 posts dev |
 | Soir (2h) | Lancer simulation HILPO sur les posts annotés → premiers résultats |
 

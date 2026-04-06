@@ -261,7 +261,7 @@ hilpo/              ← package Python : moteur HILPO
 ├── async_inference.py ← pipeline async batch (semaphore, retry, concurrence)
 ├── db.py           ← accès BDD (taxonomie, posts, prompts, prédictions, api_calls)
 ├── gcs.py          ← signature URLs GCS (V4 Signed URLs, IAM Sign Blob)
-├── prompts_v0.py   ← prompts initiaux (6 instructions v0)
+├── errors.py       ← exceptions métier (LLMCallError)
 ├── rewriter.py     ← agent rewriter (ErrorCase, RewriteResult, appel LLM)
 └── eval.py         ← métriques (accuracy, rolling, F1 macro, confusion)
 
@@ -272,6 +272,7 @@ apps/backend/       ← FastAPI : couche HTTP pour l'interface d'annotation
 - Le **package `hilpo/`** contient toute la logique IA : descripteur, classifieurs, rewriter, boucle d'optimisation, évaluation.
 - Le backend peut importer `hilpo` pour exposer des endpoints, mais la logique métier vit dans le package.
 - Le package `hilpo/` est utilisable indépendamment (scripts, simulations, éval CLI).
+- **Prompts v0** : il n'y a plus de module `hilpo/prompts_v0.py`. Les 6 prompts initiaux sont seedés en BDD via la migration SQL [`006_seed_prompts_v0.sql`](../apps/backend/migrations/006_seed_prompts_v0.sql) et chargés dynamiquement par `run_simulation.py` via `get_active_prompt(conn, agent, scope)`. La BDD est la source de vérité unique, lockée via git (toute modification nécessite une nouvelle migration). Référence humaine miroir : [`docs/prompts_v0.md`](./prompts_v0.md).
 
 ### Contraintes de séparation des données
 

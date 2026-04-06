@@ -43,6 +43,14 @@ Chaque run est stocké dans `simulation_runs` avec sa config, ses métriques, et
 
 ## Résultats B0 — Baseline zero-shot v0
 
+> ---
+> ⚠️ **OBSOLÈTE — en attente de relance**
+>
+> Les résultats ci-dessous ont été obtenus le 2026-04-05 avec les prompts v0 **avant** le commit `d2e84e9` (*Enforce strict JSON schemas for HILPO outputs*), qui a modifié les 6 prompts pour supprimer les références au tool use. Le `simulation_run id=2` a été supprimé de la BDD le 2026-04-06 (backup SQL conservé dans `data/backups/run_2_2026-04-06_11-32.sql`). Les prompts v0 ont ensuite été lockés en BDD via la migration [`006_seed_prompts_v0.sql`](../apps/backend/migrations/006_seed_prompts_v0.sql).
+>
+> Un nouveau run B0 doit être lancé (`uv run python scripts/run_baseline.py`) avec les prompts v0 courants. Les chiffres, patterns d'erreur et coûts listés dans cette section resteront ici à titre historique jusqu'à ce que les nouveaux résultats soient disponibles.
+> ---
+
 Exécuté le 5 avril 2026. simulation_run id=2. 434/437 posts classifiés (3 échoués — descripteur réponse vide).
 
 ### Accuracy globale
@@ -116,7 +124,7 @@ Ce format permet au rewriter d'agir comme un ingénieur en debug : il voit le co
 | Action | Résultat attendu | Statut |
 |--------|------------------|--------|
 | Annoter split test (437 posts) | Ground truth test | ✅ fait |
-| B0 : zero-shot prompt v0 sur test | Accuracy baseline | ✅ fait — 87.3% / 64.3% / 93.5% |
+| B0 : zero-shot prompt v0 sur test | Accuracy baseline | ⚠️ à relancer — prompts v0 modifiés au commit `d2e84e9`, run id=2 supprimé (voir bandeau OBSOLÈTE ci-dessus) |
 | Annoter split dev (1 563 posts) | Ground truth dev | ⬜ à faire (annotation aveugle, puis simulation prequential) |
 | Kappa intra-annotateur (re-swipe 50 posts) | Fiabilité ≥ 0.7 | ⬜ à faire |
 
@@ -192,7 +200,7 @@ Ce format permet au rewriter d'agir comme un ingénieur en debug : il voit le co
 - [ ] McNemar sur B0 vs HILPO vN
 
 ### Résultats
-- [x] B0 (zero-shot v0) — 87.3% / 64.3% / 93.5%
+- [ ] B0 (zero-shot v0) — à relancer avec les prompts v0 lockés via migration 006 (les anciens chiffres 87.3% / 64.3% / 93.5% sont obsolètes depuis le commit `d2e84e9`)
 - [ ] B2 (few-shot)
 - [ ] HILPO final (BN)
 - [ ] Courbe de convergence

@@ -4,6 +4,37 @@
 
 ---
 
+## Snapshot 2026-04-06 — Matin — Prompts v0 lockés en BDD via migration SQL
+
+### Changements depuis le dernier snapshot
+
+- **Incohérence détectée par l'humain** : les prompts v0 vivaient en double — dans `hilpo/prompts_v0.py` (Python hardcodé) ET en BDD via `ensure_prompts_v0()`. Le commit `d2e84e9` avait modifié le fichier Python (JSON schema strict, suppression des références au tool use) mais la BDD n'avait pas été resync — `ensure_prompts_v0()` ne faisait qu'insérer si absent, jamais update.
+- **Pire** : `run_simulation.py` initialisait son `PromptState.instructions` directement depuis `PROMPTS_V0` (fichier Python) tout en loggant les prédictions sous les `prompt_version_id` de l'ancienne version BDD. La traçabilité était cassée silencieusement — le modèle recevait les nouvelles instructions, la BDD croyait utiliser les anciennes.
+- **Migration 006 créée** (`apps/backend/migrations/006_seed_prompts_v0.sql`) : DELETE + INSERT idempotent des 6 prompts v0. Devient la source de vérité unique, versionnée dans git. Texte généré depuis le fichier Python pour garantir un match bit-parfait (vérifié par diff après application).
+- **`hilpo/prompts_v0.py` supprimé**, `run_simulation.py` refactoré : `load_prompt_state_from_db(conn)` charge l'état initial via `get_active_prompt()`, plus aucun hardcoding possible.
+- **Run 2 obsolète supprimé** : les 1 736 prédictions + 1 736 api_calls + 1 simulation_run du B0 d'avril 5 ont été deleted en transaction, avec backup SQL préalable dans `data/backups/run_2_2026-04-06_11-32.sql`.
+- **`docs/prompts_v0.md` créé** : doc miroir humaine horodatée (2026-04-06 11:36 CEST), texte intégral des 6 prompts pour lecture sans accès BDD.
+
+### Ce que j'ai appris
+
+La règle "une seule source de vérité" n'est pas négociable pour la reproductibilité scientifique. J'avais accepté la duplication prompts_v0.py ↔ BDD comme un compromis d'ergonomie ("plus facile de lire un fichier Python que de requêter la BDD"). Faux. Deux sources = un jour ou l'autre, une divergence silencieuse. Et les divergences silencieuses sont les pires : pas de message d'erreur, les chiffres continuent de sortir, mais ils mentent sur ce qu'ils mesurent.
+
+Le lock via migration SQL versionnée dans git est le bon mécanisme : modifier un prompt v0 exige désormais de créer une migration 007+, ce qui force une discussion explicite et laisse une trace auditée. Contrairement à un script de seed, la migration ne peut pas être lancée distraitement — elle est associée à un numéro, un commit, un contexte.
+
+### Dynamiques de collaboration observées
+
+- **C'est l'humain qui a identifié le problème**, pas l'agent. Mathias a dit : *"on a changé les prompts v0 au commit d2e84e9, ça veut dire que les prompts v0 en BDD ne sont plus à jour, que la baseline est obsolète"*. J'aurais continué à rouler la simulation avec la traçabilité cassée pendant combien de temps sans cette remarque ?
+- **L'humain a été explicite sur la règle architecturale** : *"il faut que les prompts soient TOUT LE TEMPS chargés en BDD, pas par script ou hardcodé"*. Pas de place à l'interprétation. Bonne pratique de formuler des invariants absolus.
+- **Limite claire sur l'autonomie** : *"c'est moi qui vais relancer le B0, pas toi"*. L'humain garde le contrôle de l'étape la plus sensible (celle qui génère les chiffres finaux du mémoire). L'agent fait le ménage, l'humain tire la photo.
+- **Workflow feat: puis docs:** rappelé implicitement via la structure de validation : d'abord le refactor code + migration, puis la synchronisation des docs — deux commits séparés. Le hook check-claude-md.py renforce ce pattern à chaque commit.
+
+### Prédictions
+
+- Le nouveau B0 sera probablement **proche** des anciens chiffres (87.3% / 64.3% / 93.5%) : les modifications de prompts au commit `d2e84e9` sont subtiles (suppression des références au tool use, réécritures mineures de formulation). Mais "probablement proche" n'est pas "identique" — d'où l'importance de relancer pour avoir des chiffres réellement imputables aux prompts courants.
+- La prochaine fois qu'un invariant d'architecture sera violé, je dois poser la question *"où vit la source de vérité ?"* avant d'accepter une duplication même temporaire.
+
+---
+
 ## Snapshot 2026-04-05 — Après-midi — Hooks PostToolUse, annotations en cours
 
 ## Ce que je comprends du projet
