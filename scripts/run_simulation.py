@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from hilpo.config import MODEL_REWRITER
 from hilpo.db import (
     format_descriptions,
+    get_active_prompt,
     get_conn,
     insert_prompt_version,
     load_categories,
@@ -42,8 +43,18 @@ from hilpo.eval import accuracy
 from hilpo.errors import LLMCallError
 from hilpo.gcs import sign_all_posts_media
 from hilpo.inference import ApiCallLog, PipelineResult, PostInput, PromptSet, classify_post
-from hilpo.prompts_v0 import PROMPTS_V0
 from hilpo.rewriter import ErrorCase, RewriteResult, rewrite_prompt
+
+# Les 6 couples (agent, scope) qui pilotent l'optimisation HILPO.
+# Source de vérité du contenu : BDD (migration 006_seed_prompts_v0.sql).
+PROMPT_KEYS: list[tuple[str, str | None]] = [
+    ("descriptor", "FEED"),
+    ("descriptor", "REELS"),
+    ("category", None),
+    ("visual_format", "FEED"),
+    ("visual_format", "REELS"),
+    ("strategy", None),
+]
 
 logging.basicConfig(
     level=logging.INFO,
@@ -172,31 +183,37 @@ def build_run_metrics(
     }
 
 
-def ensure_prompts_v0(conn) -> dict[tuple[str, str | None], int]:
-    """Insère les prompts v0 s'ils n'existent pas, retourne le mapping (agent, scope) → id."""
-    existing = conn.execute(
-        "SELECT id, agent::text, scope::text, content FROM prompt_versions WHERE version = 0"
-    ).fetchall()
-    existing_map = {(r["agent"], r["scope"]): r for r in existing}
+def load_prompt_state_from_db(conn) -> PromptState:
+    """Charge l'état initial du PromptState depuis la BDD.
 
-    ids: dict[tuple[str, str | None], int] = {}
-    for (agent, scope), content in PROMPTS_V0.items():
+    Lit les 6 prompts actifs (un par (agent, scope)) via get_active_prompt().
+    Aucune source de vérité en dur : si un prompt manque, échec explicite
+    pointant vers la migration 006_seed_prompts_v0.sql.
+    """
+    instructions: dict[tuple[str, str | None], str] = {}
+    db_ids: dict[tuple[str, str | None], int] = {}
+    versions: dict[tuple[str, str | None], int] = {}
+
+    for agent, scope in PROMPT_KEYS:
+        row = get_active_prompt(conn, agent, scope)
+        if row is None:
+            raise RuntimeError(
+                f"Prompt actif introuvable en BDD pour {agent}/{scope or 'all'}. "
+                "Appliquer apps/backend/migrations/006_seed_prompts_v0.sql avant de lancer la simulation."
+            )
         key = (agent, scope)
-        if key in existing_map:
-            ids[key] = existing_map[key]["id"]
-        else:
-            row = conn.execute(
-                """
-                INSERT INTO prompt_versions (agent, scope, version, content, status)
-                VALUES (%s, %s, 0, %s, 'active')
-                RETURNING id
-                """,
-                (agent, scope, content),
-            ).fetchone()
-            ids[key] = row["id"]
-            log.info("  prompt v0 inséré : %s/%s (id=%d)", agent, scope or "all", row["id"])
-    conn.commit()
-    return ids
+        instructions[key] = row["content"]
+        db_ids[key] = row["id"]
+        versions[key] = row["version"]
+        log.info(
+            "  prompt chargé : %s/%s -> v%s (id=%d)",
+            agent,
+            scope or "all",
+            row["version"],
+            row["id"],
+        )
+
+    return PromptState(instructions=instructions, db_ids=db_ids, versions=versions)
 
 
 # ── Construction des prompts ──────────────────────────────────
@@ -674,13 +691,9 @@ def main():
         reels = len(post_inputs) - feed
         log.info("Prêts : %d (FEED %d / REELS %d) — %d skippés", len(post_inputs), feed, reels, skipped_signed_urls)
 
-        # ── 5. Initialiser les prompts ──
-        prompt_ids = ensure_prompts_v0(conn)
-        prompt_state = PromptState(
-            instructions={k: v for k, v in PROMPTS_V0.items()},
-            db_ids=dict(prompt_ids),
-            versions={k: 0 for k in PROMPTS_V0},
-        )
+        # ── 5. Initialiser les prompts depuis la BDD ──
+        log.info("Chargement des prompts actifs depuis la BDD...")
+        prompt_state = load_prompt_state_from_db(conn)
 
         # ── 6. Labels et descriptions par scope (cache) ──
         labels_by_scope: dict[str, dict[str, list[str]]] = {}
