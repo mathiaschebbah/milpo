@@ -26,3 +26,4 @@ build/
 .claude/*.local.*
 !.claude/hooks/
 *.playwright-mcp/
+uv.lock
