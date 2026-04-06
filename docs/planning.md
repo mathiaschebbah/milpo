@@ -23,14 +23,16 @@
 - ~~B0 sur 437 posts test~~ ✅ (87.3% / 64.3% / 93.5%, $1.14)
 - ~~Phase 3 implémentée~~ ✅ (rewriter.py GPT-5.4, eval.py, run_simulation.py, migration 004)
 
-### Lun 6 — Lock prompts v0 + annotation sprint
-| Créneau | Activité |
-|---------|----------|
-| Matin (1h) | Lock prompts v0 en BDD via migration 006, refactor `run_simulation.py`, suppression `hilpo/prompts_v0.py`, suppression run 2 obsolète ✅ |
-| Matin (1h) | Relancer le baseline B0 (`uv run python scripts/run_baseline.py`) avec les prompts v0 lockés — remplace les chiffres obsolètes 87.3% / 64.3% / 93.5% |
-| Matin (1h) | Annoter ~150 posts dev |
-| Après-midi (4h) | Annoter ~600 posts dev |
-| Soir (2h) | Lancer simulation HILPO sur les posts annotés → premiers résultats |
+### Lun 6 — Lock prompts v0 + fix pipeline + B0 stabilisé ✅
+| Créneau | Activité | Statut |
+|---------|----------|--------|
+| Matin (1h) | Lock prompts v0 en BDD via migration 006, refactor `run_simulation.py`, suppression `hilpo/prompts_v0.py`, suppression run 2 obsolète | ✅ commits `ea98a52` + `66b2b39` |
+| Matin (1h) | Fix Qwen tool calling (revert classifieurs de json_schema strict vers tool calling forcé après bug enums binaires) | ✅ commits `0b3bd8b` + `aa88ef5` |
+| Matin (1h) | Investigation bug descripteurs (5 stratégies REELS testées + limite Qwen carousels), switch FEED+REELS vers Gemini 3 Flash Preview | ✅ commits `7e352ab` + `d021e00` |
+| Matin (~30min) | Relance baseline B0 (`uv run python scripts/run_baseline.py`) | ✅ run id=7, **437/437 (100%), 86.7% / 65.4% / 94.5%, $2.68** |
+| Matin (~30min) | Documentation des résultats B0 + table accuracy par format (22 formats) | ✅ commits `1e8ff02` + `394f5f6` (v2.28 + v2.29) |
+| Après-midi (~5h) | Annoter ~750 posts dev (objectif compensé : matin pris par les fixes pipeline) | ⬜ à faire |
+| Soir (2h) | Lancer simulation HILPO sur les posts annotés → premiers résultats | ⬜ à faire |
 
 ### Mar 7 — Fin annotation + simulation
 | Créneau | Activité |
