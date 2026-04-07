@@ -7,9 +7,10 @@ L'émergence des IA génératives a profondément bousculé notre rapport à l'a
 
 Mon idée est celle-ci : plutôt que de réaliser mon mémoire silencieusement avec Claude, ChatGPT, et tous les outils dont je peux disposer, en prétendant qu'il s'agit du fruit de mon travail seul, je mets en lumière cette collaboration, et observe, dans la durée, ce qui en émerge. Je prends le problème à l'envers. Mon travail est double : produire un système utile à mon entreprise d'accueil, et contribuer à mon échelle sur l'explicabilité des modèles de language.
 
-Premièrement, c'est la première fois, à ma connaissance, qu'un étudiant de l'Université Paris Dauphine documente à ce niveau de granularité, et de traçabilité un travail rédigé avec l'intelligence artificielle. Je trouve très difficile d'intégrer une "note sur l'IA" au sein du mémoire, en ceci qu'il est toujours difficile de récupérer de mesurer l'impact de les LLMs sur nos travaux, tant ils sont un puissants simulateurs d'idées, et parfois introduisent des biais dans nos raisonnements.
+Il s'agit de la première fois, à ma connaissance, qu'un étudiant de l'Université Paris Dauphine documente à ce niveau de granularité, et de traçabilité un travail rédigé avec l'intelligence artificielle. Je trouve très difficile d'intégrer une "note sur l'IA" au sein du mémoire, en ceci qu'il est toujours difficile de récupérer de mesurer l'impact de les LLMs sur nos travaux, tant ils sont un puissants simulateurs d'idées, et parfois introduisent des biais dans nos raisonnements.
+
 Toutes mes intéractions avec le modèle, et Claude sont stockées en mémoire (de ma machine), car mes seules intéractions avec l'IA pour se projet se sont limitées à des sessions Claude Code.
-Nous pourrons analyser les traces des conversations, avec les fichiers .jsonl
+Nous pourrons analyser les traces des conversations, avec les fichiers .jsonl.
 
 ## 2. Ce qui en émerge
 Cette section est dédiée aux observations que je fais durant le travail de préparation, conception, et rédaction du mémoire.
@@ -20,7 +21,7 @@ Cette section est dédiée aux observations que je fais durant le travail de pr�
 
 ### 3. Le projet, tel que je le vois.
 
-Actuellement, je considère que le projet permettera : 
+Actuellement, (au 7 Avril) je considère que le projet permettera : 
 - À Views d'acquérir une pipeline de classification optimisée sur son Dataset, qui servira aux outils d'aide à la décision que je développe au sein du média
 - D'analyser les traces des conversations entre le modèle et moi, ce qui fera l'objet d'une partie du rendu
 - De proposer une réflexion sur le travail étudiant assisté par IA
