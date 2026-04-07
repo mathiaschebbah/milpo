@@ -36,12 +36,7 @@ class PostRepository:
                 LEFT JOIN annotations a
                     ON a.ig_media_id = p.ig_media_id AND a.annotator = :annotator
                 WHERE a.id IS NULL {exclude_clause}
-                ORDER BY sp.split DESC,
-                    CASE WHEN vf.name IN (
-                        'post_news', 'post_quote', 'post_chiffre',
-                        'reel_news', 'reel_chiffre'
-                    ) THEN 0 ELSE 1 END,
-                    sp.presentation_order
+                ORDER BY sp.split DESC, sp.presentation_order
                 LIMIT 1
             """),
             params,
