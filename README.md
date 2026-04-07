@@ -6,9 +6,9 @@ Pour voir du texte rédigé par humain, consulter [ce fichier](docs/human_perspe
 
 ## Contexte
 
-Dans le cadre d'une alternance chez Views, ce projet répond au besoin de classifier automatiquement des publications Instagram multimodales (image + légende) selon trois axes : le template visuel, la catégorie éditoriale et le type de contenu (brand ou organique).
+Dans le cadre d'une alternance chez Views, ce projet répond au besoin de classifier automatiquement des publications Instagram multimodales (images, vidéo + légende) selon trois axes : le template visuel, la catégorie éditoriale et le type de contenu (sponsorisé ou éditorial).
 
-**Problématique** : Comment concevoir et évaluer une méthode de classification multimodale pour catégoriser des publications sur les réseaux sociaux ?
+**Nous répondons à la problématique suivante ** : Comment concevoir et évaluer une méthode de classification multimodale pour catégoriser des publications sur les réseaux sociaux ?
 
 ## Méthode
 
