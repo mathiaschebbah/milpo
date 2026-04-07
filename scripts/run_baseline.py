@@ -88,12 +88,27 @@ def finish_run(conn, run_id: int, metrics: dict):
     conn.commit()
 
 
+# Mapping prompt_mode → (loader strategy, source) pour la BDD.
+# - "v0"               : version=0 du slot human_v0 (les prompts seedés par migration 006)
+# - "active"           : prompt actif courant du slot human_v0 (utile pour MILPO)
+# - "dspy_constrained" : prompt actif du slot dspy_constrained (issu de related_work/dspy_baseline)
+# - "dspy_free"        : prompt actif du slot dspy_free (issu de related_work/dspy_baseline)
+#
+# Pour les modes DSPy, on fait un fallback automatique sur "v0" pour les slots
+# (descriptor, *) parce que DSPy ne touche pas le descripteur (gelé par design).
+DSPY_MODES = ("dspy_constrained", "dspy_free")
+
+
 def _load_prompt_record(conn, agent: str, scope: str | None, prompt_mode: str) -> dict:
     """Charge un prompt depuis la BDD selon le mode demandé."""
     if prompt_mode == "active":
-        row = get_active_prompt(conn, agent, scope)
+        row = get_active_prompt(conn, agent, scope, source="human_v0")
+    elif prompt_mode == "v0":
+        row = get_prompt_version(conn, agent, scope, version=0, source="human_v0")
+    elif prompt_mode in DSPY_MODES:
+        row = get_active_prompt(conn, agent, scope, source=prompt_mode)
     else:
-        row = get_prompt_version(conn, agent, scope, version=0)
+        raise ValueError(f"Mode prompt inconnu : {prompt_mode!r}")
 
     if row is None:
         raise RuntimeError(
@@ -106,7 +121,13 @@ def load_prompt_bundle(
     conn,
     prompt_mode: str,
 ) -> tuple[dict[tuple[str, str | None], dict], dict[tuple[str, str | None], int]]:
-    """Charge les prompts requis depuis la BDD."""
+    """Charge les prompts requis depuis la BDD.
+
+    Pour les modes DSPy (dspy_constrained, dspy_free), les slots (descriptor, *)
+    retombent automatiquement sur la version v0 humaine, parce que DSPy ne
+    touche pas le descripteur dans ce protocole expérimental (gelé par design,
+    cf. related_work/dspy_baseline/README.md).
+    """
     prompt_records: dict[tuple[str, str | None], dict] = {}
     prompt_ids: dict[tuple[str, str | None], int] = {}
 
@@ -118,15 +139,23 @@ def load_prompt_bundle(
         ("visual_format", "REELS"),
         ("strategy", None),
     ):
-        row = _load_prompt_record(conn, key[0], key[1], prompt_mode)
+        # Fallback descripteur : pour les modes DSPy, on charge le v0 humain
+        # parce que DSPy n'optimise jamais le descripteur (multimodal, gelé).
+        if key[0] == "descriptor" and prompt_mode in DSPY_MODES:
+            effective_mode = "v0"
+        else:
+            effective_mode = prompt_mode
+
+        row = _load_prompt_record(conn, key[0], key[1], effective_mode)
         prompt_records[key] = row
         prompt_ids[key] = row["id"]
         log.info(
-            "  prompt chargé : %s/%s -> v%s (%s)",
+            "  prompt chargé : %s/%s -> v%s (%s, source=%s)",
             key[0],
             key[1] or "all",
             row["version"],
             row.get("status", "n/a"),
+            row.get("source", "human_v0"),
         )
 
     return prompt_records, prompt_ids
@@ -223,20 +252,31 @@ def store_results(conn, results, post_inputs, prompt_ids, run_id):
 # ── Main ───────────────────────────────────────────────────────
 
 
+RUN_LABELS = {
+    "v0": ("B0", "v0 humain"),
+    "active": ("BN", "actifs MILPO"),
+    "dspy_constrained": ("B_dspy_in_milpo_constrained", "DSPy MIPROv2 contraint"),
+    "dspy_free": ("B_dspy_in_milpo_free", "DSPy MIPROv2 libre"),
+}
+
+
 async def main():
     parser = argparse.ArgumentParser(description="Évalue la pipeline MILPO sur le split test")
     parser.add_argument(
         "--prompts",
-        choices=("v0", "active"),
+        choices=tuple(RUN_LABELS.keys()),
         default="v0",
-        help="Jeu de prompts à charger depuis la BDD",
+        help=(
+            "Jeu de prompts à charger depuis la BDD. "
+            "v0=humains seedés, active=actifs MILPO, "
+            "dspy_constrained/dspy_free=issus de related_work/dspy_baseline."
+        ),
     )
     args = parser.parse_args()
 
     conn = get_conn()
     t0 = time.monotonic()
-    run_label = "B0" if args.prompts == "v0" else "BN"
-    prompt_label = "v0" if args.prompts == "v0" else "actifs"
+    run_label, prompt_label = RUN_LABELS[args.prompts]
 
     log.info("=" * 55)
     log.info("%s — Évaluation %s sur split test", run_label, prompt_label)

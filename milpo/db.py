@@ -102,24 +102,34 @@ def get_active_prompt(
     conn: psycopg.Connection,
     agent: str,
     scope: str | None,
+    source: str = "human_v0",
 ) -> dict | None:
-    """Retourne le prompt actif pour un agent × scope."""
+    """Retourne le prompt actif pour un agent × scope × source.
+
+    Le default `source='human_v0'` préserve le comportement MILPO existant
+    (les prompts seedés par migration 006). Pour récupérer un prompt issu
+    de DSPy ou d'une autre méthode, passer source='dspy_constrained' etc.
+
+    NB : nécessite migration 007_prompt_source.sql appliquée.
+    """
     if scope is None:
         return conn.execute(
             """
-            SELECT id, agent, scope, version, content
+            SELECT id, agent, scope, version, content, source
             FROM prompt_versions
-            WHERE agent = %s::agent_type AND scope IS NULL AND status = 'active'
+            WHERE agent = %s::agent_type AND scope IS NULL
+              AND source = %s AND status = 'active'
             """,
-            (agent,),
+            (agent, source),
         ).fetchone()
     return conn.execute(
         """
-        SELECT id, agent, scope, version, content
+        SELECT id, agent, scope, version, content, source
         FROM prompt_versions
-        WHERE agent = %s::agent_type AND scope = %s::media_product_type AND status = 'active'
+        WHERE agent = %s::agent_type AND scope = %s::media_product_type
+          AND source = %s AND status = 'active'
         """,
-        (agent, scope),
+        (agent, scope, source),
     ).fetchone()
 
 
@@ -128,24 +138,32 @@ def get_prompt_version(
     agent: str,
     scope: str | None,
     version: int,
+    source: str = "human_v0",
 ) -> dict | None:
-    """Retourne une version précise de prompt pour un agent × scope."""
+    """Retourne une version précise de prompt pour un agent × scope × source.
+
+    Le default `source='human_v0'` préserve le comportement MILPO existant.
+
+    NB : nécessite migration 007_prompt_source.sql appliquée.
+    """
     if scope is None:
         return conn.execute(
             """
-            SELECT id, agent, scope, version, content, status
+            SELECT id, agent, scope, version, content, status, source
             FROM prompt_versions
-            WHERE agent = %s::agent_type AND scope IS NULL AND version = %s
+            WHERE agent = %s::agent_type AND scope IS NULL
+              AND version = %s AND source = %s
             """,
-            (agent, version),
+            (agent, version, source),
         ).fetchone()
     return conn.execute(
         """
-        SELECT id, agent, scope, version, content, status
+        SELECT id, agent, scope, version, content, status, source
         FROM prompt_versions
-        WHERE agent = %s::agent_type AND scope = %s::media_product_type AND version = %s
+        WHERE agent = %s::agent_type AND scope = %s::media_product_type
+          AND version = %s AND source = %s
         """,
-        (agent, scope, version),
+        (agent, scope, version, source),
     ).fetchone()
 
 
@@ -158,15 +176,23 @@ def insert_prompt_version(
     status: str = "active",
     parent_id: int | None = None,
     simulation_run_id: int | None = None,
+    source: str = "human_v0",
 ) -> int:
-    """Insère une nouvelle version de prompt. Retourne l'id."""
+    """Insère une nouvelle version de prompt. Retourne l'id.
+
+    Le default `source='human_v0'` préserve le comportement MILPO existant.
+    Pour insérer un prompt issu de DSPy, passer source='dspy_constrained' etc.
+
+    NB : nécessite migration 007_prompt_source.sql appliquée.
+    """
     row = conn.execute(
         """
-        INSERT INTO prompt_versions (agent, scope, version, content, status, parent_id, simulation_run_id)
-        VALUES (%s, %s, %s, %s, %s::prompt_status, %s, %s)
+        INSERT INTO prompt_versions
+            (agent, scope, version, content, status, parent_id, simulation_run_id, source)
+        VALUES (%s, %s, %s, %s, %s::prompt_status, %s, %s, %s)
         RETURNING id
         """,
-        (agent, scope, version, content, status, parent_id, simulation_run_id),
+        (agent, scope, version, content, status, parent_id, simulation_run_id, source),
     ).fetchone()
     conn.commit()
     return row["id"]
@@ -261,8 +287,19 @@ def promote_prompt(
     agent: str,
     scope: str | None,
     new_id: int,
+    source: str = "human_v0",
 ) -> None:
-    """Retire tout prompt actif du slot et active le nouveau, dans une seule transaction."""
+    """Retire tout prompt actif du slot (agent, scope, source) et active le nouveau.
+
+    CRITIQUE : le filtrage par `source` est obligatoire après migration 007.
+    Sans ça, promouvoir un prompt MILPO retirerait silencieusement les prompts
+    DSPy actifs dans le même slot (agent, scope) — ce qui casserait le tagging
+    multi-source mis en place pour les comparaisons baseline.
+
+    Le default `source='human_v0'` préserve le comportement MILPO existant.
+
+    NB : nécessite migration 007_prompt_source.sql appliquée.
+    """
     with conn.transaction():
         conn.execute(
             """
@@ -270,9 +307,10 @@ def promote_prompt(
             SET status = 'retired'::prompt_status
             WHERE agent = %s::agent_type
               AND scope IS NOT DISTINCT FROM %s::media_product_type
+              AND source = %s
               AND status = 'active'::prompt_status
             """,
-            (agent, scope),
+            (agent, scope, source),
         )
         conn.execute(
             "UPDATE prompt_versions SET status = 'active'::prompt_status WHERE id = %s",

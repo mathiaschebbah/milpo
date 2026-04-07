@@ -73,6 +73,23 @@ Approches d'optimisation automatique de prompts qui ne sont pas notre voisin dir
 
 **Point commun avec ProTeGi (et MILPO)** : ces méthodes optimisent un prompt à partir d'un signal d'erreur, sur un dataset labellé. **Différence avec MILPO** : aucune n'est multimodale, et toutes sont évaluées sur des benchmarks académiques équilibrés (pas sur une taxonomie métier subjective à longue traîne).
 
+### 2.1 Comparaison empirique : DSPy MIPROv2 sur le pipeline MILPO
+
+**Pourquoi DSPy est le voisin le plus proche.** DSPy/MIPROv2 (Khattab et al., ICLR 2024) couvre nativement la majorité des besoins de MILPO : pipelines multi-stage, optimisation conjointe de plusieurs prompts, petits datasets labellés, support multimodal récent (`dspy.Image`). Sur le plan méthodologique, MIPROv2 utilise une recherche bayésienne sur des candidats d'instructions générés par un LLM proposer, ce qui n'est pas un gradient textuel à la ProTeGi/MILPO mais qui poursuit le même objectif (trouver la meilleure instruction étant donné un signal d'erreur sur un trainset).
+
+**Protocole empirique.** On applique DSPy MIPROv2 aux 4 classifieurs text-only de MILPO (`category`, `visual_format` FEED, `visual_format` REELS, `strategy`), en gelant le descripteur multimodal (qui utilise des features déjà cachées en BDD pour le test split). On produit deux ensembles de prompts optimisés :
+
+| Mode | Surface optimisée | Comparable à MILPO ? |
+|---|---|---|
+| **constrained** | Instructions seulement, descriptions taxonomiques fixes (`dspy.InputField`) | ✅ apples-to-apples — MILPO ne touche pas non plus les descriptions (cf. `milpo/rewriter.py:46`) |
+| **free** | Tout — descriptions injectées dans le docstring de la signature, MIPROv2 peut tout réécrire | ❌ asymétrique — borne supérieure / mesure du « coût de l'invariant humain » |
+
+**Architecture cruciale : DSPy = générateur, MILPO = runtime d'évaluation.** Pour que les chiffres soient comparables à B0, on n'évalue pas les prompts optimisés dans le runtime DSPy (qui utilise un parsing texte avec marqueurs `[[ ## field ## ]]`), mais dans le runtime MILPO existant (`scripts/run_baseline.py`, qui fait du tool calling Qwen forcé avec enum fermé). On insère les instructions DSPy dans la table `prompt_versions` avec `source='dspy_constrained'` ou `'dspy_free'` (migration 007), et on lance `run_baseline.py --prompts dspy_*`. Cette stratégie garantit que la **seule variable qui change entre B0 et B_dspy_in_milpo est la string d'instructions** — le runtime, le tool calling, l'async, le parsing, les posts test, tout est identique.
+
+En bonus, on lance aussi une évaluation native DSPy sur les mêmes programmes compilés. La différence `B_dspy_native_{mode} − B_dspy_in_milpo_{mode}` mesure empiriquement la contribution du runtime à la performance et alimente la discussion méthodologique : « voilà combien de points le runtime a coûté ou gagné, indépendamment de la qualité des instructions ».
+
+**Statut** : protocole et code en place (cf. [`related_work/dspy_baseline/`](../related_work/dspy_baseline/)), runs en attente d'un dev split annoté plus complet. Voir `docs/evaluation.md` pour le tableau comparatif des chiffres.
+
 ---
 
 ## 3. Optimisation de prompts avec humain dans la boucle

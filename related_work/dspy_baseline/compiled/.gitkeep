@@ -1,0 +1,3 @@
+# Programmes DSPy compilés (sortie de optimize.py).
+# Format : {mode}_{axis}_{scope}.json
+# Ex : constrained_visual_format_FEED.json

@@ -21,3 +21,6 @@ eval = [
     "scikit-learn>=1.6.0",
     "numpy>=2.0.0",
 ]
+dspy = [
+    "dspy-ai>=2.6.0",
+]

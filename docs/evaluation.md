@@ -153,6 +153,35 @@ Le run id=7 est le **3e run B0** du projet — les 2 précédents ont été inva
 2. **Runs id=4, 5, 6** (6 avril, supprimés) : tous tués en cours par l'humain après détection empirique des bugs descripteurs (Qwen carousels >8 + Gemini 2.5 Flash instable sous concurrence Google AI Studio).
 3. **Run id=7** (6 avril, courant) : configuration finale stabilisée — descripteur Gemini 3 Flash Preview pour les 2 scopes (commit `7e352ab`), classifieurs Qwen 3.5 Flash + tool calling, prompts v0 lockés via migration 006. **Couverture 100%, validation empirique complète.**
 
+### Comparaison empirique avec DSPy MIPROv2 (related_work/dspy_baseline)
+
+Pour positionner MILPO empiriquement face à l'état de l'art générique de l'optimisation de prompts, on lance DSPy MIPROv2 (zero-shot, instructions seulement) sur les **mêmes** 4 classifieurs text-only (`category`, `visual_format` FEED/REELS, `strategy`), avec deux modes : `constrained` (descriptions taxonomiques fixes, apples-to-apples avec MILPO) et `free` (MIPROv2 peut tout réécrire, borne supérieure).
+
+Architecture : DSPy est utilisé **uniquement comme générateur de strings d'instructions** hors-ligne. Les instructions optimisées sont insérées dans `prompt_versions` avec `source='dspy_constrained'` ou `'dspy_free'` (migration 007), puis évaluées via le **runtime MILPO existant** (`run_baseline.py --prompts dspy_*`). La seule variable qui change entre B0 et B_dspy_in_milpo est la string d'instructions — le tool calling, l'async, le parsing, les posts test sont identiques. Voir [`related_work/dspy_baseline/README.md`](../related_work/dspy_baseline/README.md) pour le protocole détaillé.
+
+#### Tableau de comparaison (à compléter après les runs)
+
+| Run | Source instructions | Runtime éval | Catégorie | Visual_format | Stratégie | Coût | Notes |
+|---|---|---|---|---|---|---|---|
+| **B0** (run id=7) | Humain v0 | MILPO | **86,7%** | **65,4%** | **94,5%** | $2,68 | Référence |
+| B_dspy_native_constrained | DSPy MIPROv2 | DSPy | ?? | ?? | ?? | ~$1 | Borne native, pas comparable directement à B0 (runtime ≠) |
+| **B_dspy_in_milpo_constrained** | DSPy MIPROv2 | MILPO | ?? | ?? | ?? | ~$2,7 | **Apples-to-apples vs B0** — seule variable : la string d'instructions |
+| B_dspy_native_free | DSPy MIPROv2 (free) | DSPy | ?? | ?? | ?? | ~$1 | Borne native upper |
+| **B_dspy_in_milpo_free** | DSPy MIPROv2 (free) | MILPO | ?? | ?? | ?? | ~$2,7 | Upper bound apples-to-apples (DSPy peut réécrire les descriptions) |
+| B_milpo (Phase 3) | MILPO rewriter | MILPO | ?? | ?? | ?? | ?? | À comparer directement à B_dspy_in_milpo_constrained |
+
+#### Lectures attendues du tableau
+
+1. **B_dspy_in_milpo_constrained vs B0** : mesure du gain (ou de la perte) de MIPROv2 par rapport aux instructions humaines, *à descriptions et runtime constants*. C'est la comparaison principale pour évaluer si MIPROv2 sait faire mieux qu'un humain expert sur ce problème.
+
+2. **B_dspy_in_milpo_free vs B_dspy_in_milpo_constrained** : mesure du **coût (ou bénéfice) de l'invariant humain**. Si la version free fait significativement mieux, c'est que les descriptions humaines limitent le système ; si c'est égal ou pire, les descriptions humaines sont au moins aussi bonnes que ce que MIPROv2 sait écrire.
+
+3. **B_dspy_native vs B_dspy_in_milpo (à mode constant)** : mesure de la **contribution empirique du runtime à la performance**. Si l'écart est faible, le runtime DSPy et le runtime MILPO produisent des résultats équivalents pour les mêmes instructions. Si l'écart est large, un des deux runtimes est mieux adapté aux particularités de Qwen 3.5 Flash via OpenRouter (potentiellement à cause du tool calling forcé vs parse texte).
+
+4. **B_milpo vs B_dspy_in_milpo_constrained** : la comparaison de fond du mémoire — deux méthodes d'optimisation de prompts (gradient textuel à la ProTeGi vs Bayesian search MIPROv2) confrontées à infrastructure strictement identique sur le même cas industriel.
+
+**Statut** : protocole et code en place. Runs en attente — l'extension du dev split annoté (actuellement 237 posts, idéalement 400-500+) conditionne la robustesse statistique des résultats DSPy.
+
 ### Contexte du rewriter — format des batches d'erreurs
 
 Quand le rewriter se déclenche (30 erreurs accumulées), il reçoit pour chaque erreur :
