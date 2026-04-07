@@ -23,5 +23,5 @@ Cette section est dédiée aux observations que je fais durant le travail de pr�
 
 Actuellement, (au 7 Avril) je considère que le projet permettera : 
 - À Views d'acquérir une pipeline de classification optimisée sur son Dataset, qui servira aux outils d'aide à la décision que je développe au sein du média
-- D'analyser les traces des conversations entre le modèle et moi, ce qui fera l'objet d'une partie du rendu
+- D'analyser les traces des conversations entre le modèle (Claude Opus 4.6) et moi, ce qui fera l'objet d'une partie du rendu
 - De proposer une réflexion sur le travail étudiant assisté par IA
