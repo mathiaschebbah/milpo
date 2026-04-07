@@ -16,14 +16,12 @@ L'hypothèse est que cette adaptation de ProTeGi à un cas multimodal permet d'a
 
 ## Collaboration Agent-Humain
 
-Ce projet est également une expérimentation de collaboration entre un agent IA (Claude Code) et un humain pour un travail de recherche. L'intégralité du développement — de la conception architecturale à l'implémentation — est réalisée en binôme agent-humain, avec des mécanismes d'interaction structurés (hooks, validations humaines, versionnement de la documentation). La progression est traçable dans l'historique git.
+Ce projet est également une expérimentation de collaboration entre un agent IA (Claude Code) et un humain pour un travail de recherche. L'intégralité du développement — de la conception architecturale à l'implémentation — est réalisée en binôme agent-humain, avec des mécanismes d'interaction structurés (hooks, validations humaines, versionnement de la documentation). La progression est traçable dans l'historique git. 
+
+**Tous les fichiers sont issus de cette collaboration, à l'exception de [`docs/human_perspective.md`](docs/human_perspective.md)**, où est explicitée toute ma méthode, ma démarche et mes retours d'expérience sur la collaboration agent-humain.
 
 Les mécanismes d'interaction sont définis dans [`.claude/hooks/`](.claude/hooks/) et documentés dans [`docs/conventions.md`](docs/conventions.md).
 
 ## Reproduction
 
 Voir [`REPRODUCE.md`](REPRODUCE.md) pour le guide de reproduction de l'état actuel des résultats et du protocole expérimental visé.
-
-## Licence
-
-Ce dépôt est publié à des fins académiques.
