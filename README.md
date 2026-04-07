@@ -1,12 +1,12 @@
-# MILPO — Multimodal Iterative Loop Prompt Optimization
+# MILPO - Multimodal Iterative Loop Prompt Optimization
 
 Dépôt associé au mémoire de Mathias CHEBBAH, Master 1 MIAGE, Université Paris Dauphine.
 
-Pour voir du texte rédigé par humain, consulter [ce fichier](docs/human_perspective.md).
+Pour prendre connaissance de la méthodologie de ce travail consulter [ce fichier](docs/human_perspective.md).
 
 ## Contexte
 
-Dans le cadre d'une alternance chez Views, ce projet répond au besoin de classifier automatiquement des publications Instagram multimodales (images, vidéo + légende) selon trois axes : le template visuel, la catégorie éditoriale et le type de contenu (sponsorisé ou éditorial).
+Dans le cadre de mon alternance chez Views, en tant que Data & AI Scientist ce projet répond au besoin de classifier automatiquement des publications Instagram (images, vidéo + légende) selon trois axes : le template visuel, la catégorie éditoriale et le type de contenu (sponsorisé ou éditorial).
 
 **Nous répondons à la problématique suivante** : Comment concevoir et évaluer une méthode de classification multimodale pour catégoriser des publications sur les réseaux sociaux ?
 
@@ -18,11 +18,9 @@ L'hypothèse est que cette adaptation de ProTeGi à un cas multimodal permet d'a
 
 ## Collaboration Agent-Humain
 
-Ce projet est également une expérimentation de collaboration entre un agent IA (Claude Code) et un humain pour un travail de recherche. L'intégralité du développement, de la conception architecturale à l'implémentation, est réalisée en binôme agent-humain, avec des mécanismes d'interaction structurés (hooks, validations humaines, versionnement de la documentation). La progression est traçable dans l'historique git.
+Ce projet est également une expérimentation de collaboration entre un agent IA (Claude Code) et un humain pour un travail de recherche. L'intégralité du développement, de la conception architecturale à l'implémentation, est réalisée en binôme agent-humain, avec des **mécanismes d'interaction structurés**. La progression est traçable dans l'historique git. Les mécanismes d'interaction sont définis dans [`.claude/hooks/`](.claude/hooks/) et documentés dans [`docs/conventions.md`](docs/conventions.md).
 
 **Tous les fichiers sont issus de cette collaboration, à l'exception de [`docs/human_perspective.md`](docs/human_perspective.md)**, où sont explicités toute ma méthode, ma démarche et mes retours d'expérience sur la collaboration agent-humain.
-
-Les mécanismes d'interaction sont définis dans [`.claude/hooks/`](.claude/hooks/) et documentés dans [`docs/conventions.md`](docs/conventions.md).
 
 ## Reproduction
 
