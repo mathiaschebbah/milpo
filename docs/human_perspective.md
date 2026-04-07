@@ -24,6 +24,7 @@ En outre, les motivations d'une telle démarche sont :
 - Je veux démystifier le tabou et aussi proposer un cadre global et réflexif. On a soit un tabou soit une zone d’ombre, un secret de Polichinelle, et surtout en France, où les institutions scientifiques sont excellentes mais où les étudiants sont friands de ces outils.
 - Terence Tao cite ChatGPT dans ses travaux, je veux aller dans cette dynamique et faire un travail sérieux, assumé et défendable qui utilise les modèles de génération de texte.
 - Difficulté à trouver une bonne problématique après cela.
+- Les agents produisent, à mon sens, un travail qui est valorisable, et que l'on peut imputer à leur humain.
 - L’envie de faire un travail qui sort de l’ordinaire et du cadre « classique » ;)
 
 ## 2. Ce qui en émerge
@@ -45,5 +46,7 @@ J’essaierai de répondre aux hypothèses :
 - H1 : Lorsque l’humain est expert, le modèle est un accélérateur exponentiel.
 
 - H2 : Quand l’humain est profane, le modèle conduit à de mauvaises directions en augmentant la confiance de l’humain sur des idées dont il n’est pas expert, effet Dunning-Kruger amplifié avec les agents de codage ?
+
+- H3 : La collaboration humain-profane / agent ne fait émerger un travail structuré qu'à la condition que l'humain-profane ait les ressources nécessaires pour questionner le travail de l'agent.
 
 
