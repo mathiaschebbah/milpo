@@ -1,9 +1,9 @@
-VERSION 1.0 - L'agent n'a pas le droit d'écrire dans ce fichier.
+VERSION 1.1 - L'agent n'a pas le droit d'écrire dans ce fichier.
 
 # Perspective humaine
 
 ## 1. Pourquoi une telle démarche, et pourquoi le faire au sein de mon Mémoire de Master 1 ? 
-L'émergence des IA génératives a profondément bousculé notre rapport à l'apprentissage, à notre travail scolaire et étudiant. Le constat est simple, clair et sans appel : tout le monde utilise les outils d'IA générative pour produire des rendus, quels qu'ils soient, et ce, même pour des travaux tels que les mémoires.
+L'émergence des IA génératives a profondément bousculé notre rapport à l'apprentissage, à notre travail scolaire et étudiant. Le constat est simple : les étudiants utilisent les outils d'IA générative pour produire des rendus, quels qu'ils soient, et ce, même pour des travaux tels que les mémoires.
 De plus, au sein de mes activités chez Views, j'utilise de manière intensive les agents de code, en particulier Claude Code, qui connaît un taux d'adoption fulgurant dans notre équipe.
 
 Mon idée est celle-ci : plutôt que de réaliser mon mémoire silencieusement avec Claude, ChatGPT et tous les outils dont je peux disposer, en prétendant qu'il s'agit du fruit de mon travail seul, je mets en lumière cette collaboration, et observe, dans la durée, ce qui en émerge. Je prends le problème à l'envers. Mon travail est double : produire un système utile à mon entreprise d'accueil, et contribuer à mon échelle à l'explicabilité des modèles de langage. Cela conduira in fine à une réflexion personnelle sur l'usage de l'IA en entreprise.
@@ -26,7 +26,6 @@ En outre, les motivations d'une telle démarche sont :
 - Difficulté à trouver une bonne problématique après cela.
 - Les agents produisent, à mon sens, un travail qui est valorisable, et que l'on peut imputer à leur humain.
 - Amplifier ma compréhension des LLM et des modèles génératifs
-- L’envie de faire un travail qui sort de l’ordinaire et du cadre « classique » ;)
 
 ## 2. Ce qui en émerge
 Cette section est dédiée aux observations que je fais durant le travail de préparation, conception et rédaction du mémoire.
@@ -41,13 +40,3 @@ Actuellement (au 7 avril), je considère que le projet permettra :
 - À Views d'acquérir une pipeline de classification optimisée sur son dataset, qui servira aux outils d'aide à la décision que je développe au sein du média, **résoudre le problème de classification sur une donnée métier.**
 - D'analyser les traces des conversations entre le modèle (Claude Opus 4.6) et moi, ce qui fera l'objet d'une partie du rendu.
 - De proposer une réflexion sur le travail étudiant assisté par IA, et plus largement, sur le développement agentique en entreprise.
-
-J’essaierai de répondre aux hypothèses : 
-
-- H1 : Lorsque l’humain est expert, le modèle est un accélérateur exponentiel.
-
-- H2 : Quand l’humain est profane, le modèle conduit à de mauvaises directions en augmentant la confiance de l’humain sur des idées dont il n’est pas expert, effet Dunning-Kruger amplifié avec les agents de codage ?
-
-- H3 : La collaboration humain-profane / agent ne fait émerger un travail structuré qu'à la condition que l'humain-profane ait les ressources nécessaires pour questionner le travail de l'agent.
-
-
