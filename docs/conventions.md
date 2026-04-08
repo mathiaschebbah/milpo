@@ -6,6 +6,8 @@
 - **Français avec accents** : tout contenu en français (README, docs, commentaires, messages de commit) doit utiliser les accents corrects (é, è, à, ù, etc.). Toujours relire avant d'écrire un fichier.
 - **Interdiction formelle** d'écrire dans [`docs/human_perspective.md`](docs/human_perspective.md)
 
+> **Note sur l'enforcement** : ces trois règles sont des **directives en langage naturel** rappelées à l'agent par le hook `check-claude-md.py` après chaque commit, **pas des guards techniques**. Aucun script ne bloque l'écriture si elles sont violées — c'est une convention de comportement qui dépend de la rigueur de l'agent et du contrôle de l'humain en review.
+
 ## API REST
 
 - Endpoints versionnés sous `/v1/`

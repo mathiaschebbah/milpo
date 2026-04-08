@@ -8,6 +8,7 @@ Fichiers :
 - [`004_rewrite_log_extensions.sql`](../apps/backend/migrations/004_rewrite_log_extensions.sql) — colonnes simulation tracking sur `rewrite_logs`
 - [`005_prompt_version_run_tracking.sql`](../apps/backend/migrations/005_prompt_version_run_tracking.sql) — `simulation_run_id` sur `prompt_versions`, unicité par run
 - [`006_seed_prompts_v0.sql`](../apps/backend/migrations/006_seed_prompts_v0.sql) — seed des 6 prompts v0 (descripteur FEED/REELS + classifieurs catégorie / visual_format × 2 / stratégie). DELETE + INSERT idempotent. Devient la source de vérité unique — `hilpo/prompts_v0.py` supprimé.
+- [`007_prompt_source.sql`](../apps/backend/migrations/007_prompt_source.sql) — colonne `prompt_versions.source VARCHAR(30) DEFAULT 'human_v0'` pour distinguer les prompts humains, les prompts MILPO réécrits, et les prompts DSPy MIPROv2. Contrainte unique scopée par source : `(agent, scope, source) WHERE active`. Vue `prompt_metrics` mise à jour pour exposer `source` et `simulation_run_id`. Appliquée le 2026-04-08.
 
 ## Tables
 
@@ -21,12 +22,12 @@ Fichiers :
 | `heuristic_labels` | Catégorisation v0 — heuristique imprécise (import CSV) |
 | `sample_posts` | Échantillon 2000 posts + split dev/test + ordre de présentation |
 | `annotations` | Annotations humaines (corrections/validations, flag `doubtful` pour re-review) |
-| `prompt_versions` | Prompts versionnés **par agent × scope** (type de post), trackés par `simulation_run_id` |
+| `prompt_versions` | Prompts versionnés **par agent × scope × source** (type de post + origine : `human_v0`, MILPO rewriter, DSPy MIPROv2), trackés par `simulation_run_id` |
 | `predictions` | Prédictions par agent + match auto-calculé par trigger |
 | `rewrite_logs` | Historique des réécritures de prompt (avant/après, raisonnement) |
 | `api_calls` | Traçabilité complète des appels API (tokens, coût, latence) |
 | `simulation_runs` | Runs de baseline et de simulation MILPO offline avec config, résultats, coûts |
-| `prompt_metrics` | Vue — accuracy agrégée par version de prompt × agent × simulation |
+| `prompt_metrics` | Vue — accuracy agrégée par version de prompt × agent × `source` × `simulation_run_id` (mise à jour migration 007) |
 
 ## Descriptions taxonomie
 
@@ -56,7 +57,7 @@ Un seul prompt actif par combinaison `(agent, scope)` — index unique partiel.
 
 ## Contraintes clés
 
-- `UNIQUE (agent, scope) WHERE status = 'active'` — un seul prompt actif par agent × scope
+- `UNIQUE (agent, scope, source) WHERE status = 'active'` — un seul prompt actif par agent × scope × source (migration 007 : permet à un prompt MILPO actif et un prompt DSPy actif de coexister sans se retirer mutuellement)
 - `UNIQUE (simulation_run_id, agent, scope, version) NULLS NOT DISTINCT WHERE simulation_run_id IS NOT NULL` — pas de version dupliquée au sein d'un même run de simulation
 - `UNIQUE (ig_media_id, annotator)` — une annotation par post par annotateur
 - `UNIQUE (parent_ig_media_id, media_order)` — ordre des médias dans un carousel

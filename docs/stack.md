@@ -32,6 +32,10 @@ Les images/vidéos sont stockées sur Google Cloud Storage (bucket privé). Le b
 
 FastAPI, SQLAlchemy (async), asyncpg, pydantic-settings, uvicorn, alembic, google-cloud-storage, google-auth
 
-## Dépendances package hilpo/ (pyproject.toml racine)
+## Dépendances package milpo/ (pyproject.toml racine)
 
-openai (SDK compatible OpenRouter), pydantic, psycopg[binary], google-cloud-storage, google-auth, python-dotenv. Optionnel (eval) : scikit-learn, numpy.
+openai (SDK compatible OpenRouter), pydantic, psycopg[binary], google-cloud-storage, google-auth, python-dotenv. Optionnel (eval) : scikit-learn, numpy. Optionnel (baseline DSPy, `[project.optional-dependencies] dspy`) : dspy-ai 3.1.3, litellm 1.83 — installé dans `.venv` mais aucun appel LLM lancé à ce jour.
+
+## Dépendances frontend (apps/frontend/package.json)
+
+Stack principale : Vite, React 18, TypeScript, Tailwind CSS v4. UI : shadcn/ui (composants `@base-ui-components/react`), `lucide-react` (icônes), `tailwind-merge` + `clsx` (composition de classes), `tslib` (runtime helpers TypeScript), `@fontsource/*` (polices web auto-hébergées).
