@@ -40,3 +40,9 @@ Actuellement (au 7 avril), je considère que le projet permettra :
 - À Views d'acquérir une pipeline de classification optimisée sur son dataset, qui servira aux outils d'aide à la décision que je développe au sein du média, **résoudre le problème de classification sur une donnée métier.**
 - D'analyser les traces des conversations entre le modèle (Claude Opus 4.6) et moi, ce qui fera l'objet d'une partie du rendu.
 - De proposer une réflexion sur le travail étudiant assisté par IA, et plus largement, sur le développement agentique en entreprise.
+
+### 3.1 Éléments de reflexion sur mon travail
+Le projet a été construit rapidement sur la base des propositions d'intelligence artificielle. Le principal écueil est le manque de plannification humaine. Une plannification plus poussée de ma part aurait permis de construire le projet plus proprement, avec des contributions de l'agent plus utiles.
+Au 8 Avril, le constat est que je dois nettoyer le surplus de génération de l'IA, qui n'est pas tout à fait pertinente.
+
+Je constate toutefois que le modèle m'a permis d'obtenir des pistes dont je n'avais pas connaissance auparavant. Ce qui aurait pris des jours de recherche sur des moteurs de recherche classiques ont été générés en drastiquement moins de temps.
