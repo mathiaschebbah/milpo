@@ -341,35 +341,34 @@ L'humain annote d'abord tous les posts dev. La simulation rejoue ensuite les ann
 
 ```math
 \begin{array}{l}
-\text{MILPO\_Prequential} \\
-\text{Entrée : } \mathcal{D}_{\text{dev}} = \{(x_i, h(x_i))\}_{i=1}^{N_{\text{dev}}},\ B,\ \delta,\ \text{patience},\ w_{\text{eval}},\ f_\theta,\ I_0,\ \Delta \\
-\text{Sortie : } I_T \\
-\\
+\textbf{MILPO\_Prequential} \\[4pt]
+\textbf{Entree : } \mathcal{D}_{\text{dev}} = \{(x_i, h(x_i))\}_{i=1}^{N_{\text{dev}}},\ B,\ \delta,\ \text{patience},\ w_{\text{eval}},\ f_\theta,\ I_0,\ \Delta \\
+\textbf{Sortie : } I_T \\[4pt]
 1.\ t \leftarrow 0,\ E_t \leftarrow \emptyset,\ \mathit{fails} \leftarrow 0,\ \mathit{cursor} \leftarrow 0 \\
-2.\ \text{tant que } \mathit{cursor} < N_{\text{dev}} \text{ :} \\
+2.\ \textbf{tant que } \mathit{cursor} < N_{\text{dev}} \textbf{ faire} \\
 3.\ \quad x_i \leftarrow \mathcal{D}_{\text{dev}}[\mathit{cursor}] \\
 4.\ \quad \text{features}_i \leftarrow \mathcal{F}\bigl(x_i,\ (I_t^{(\text{desc},\, m_i)},\, \Delta^{m_i})\bigr) \\
-5.\ \quad \text{pour chaque } k \in \{\text{cat}, \text{vf}, \text{str}\} \text{ en parallèle :} \\
+5.\ \quad \textbf{pour chaque } k \in \{\text{cat}, \text{vf}, \text{str}\} \textbf{ en parallele faire} \\
 6.\ \qquad \hat{y}_i^k \leftarrow f_\theta\bigl(\text{features}_i,\, \text{caption}_i,\ (I_t^{(k,\, m_i)},\, \Delta^{m_i})\bigr) \\
-7.\ \quad \text{pour chaque } k \text{ :} \\
-8.\ \qquad \text{si } h(x_i)^k \neq \hat{y}_i^k \text{ :} \\
+7.\ \quad \textbf{pour chaque } k \textbf{ faire} \\
+8.\ \qquad \textbf{si } h(x_i)^k \neq \hat{y}_i^k \textbf{ alors} \\
 9.\ \qquad\qquad E_t \leftarrow E_t \cup \{(x_i,\, \text{features}_i,\, h(x_i)^k,\, \hat{y}_i^k,\, k,\, m_i)\} \\
 10.\ \quad \mathit{cursor} \leftarrow \mathit{cursor} + 1 \\
-11.\ \quad \text{si } |E_t| \geq B \text{ :} \\
+11.\ \quad \textbf{si } |E_t| \geq B \textbf{ alors} \\
 12.\ \qquad (k^\star,\, m^\star) \leftarrow \text{pick\_target}(E_t) \\
 13.\ \qquad I_{t+1}^{\text{cand}} \leftarrow \mathcal{R}\bigl(I_t^{(k^\star,\, m^\star)},\, E_t,\, \Delta\bigr) \\
 14.\ \qquad \mathcal{S}_{\text{eval}} \leftarrow \mathcal{D}_{\text{dev}}[\mathit{cursor} : \mathit{cursor} + w_{\text{eval}}] \\
 15.\ \qquad \text{acc}_{\text{inc}} \leftarrow \mathrm{m}\bigl(\mathcal{S}_{\text{eval}},\, (I_t^{(k^\star,\, m^\star)},\, \Delta)\bigr) \\
 16.\ \qquad \text{acc}_{\text{cand}} \leftarrow \mathrm{m}\bigl(\mathcal{S}_{\text{eval}},\, (I_{t+1}^{\text{cand}},\, \Delta)\bigr) \\
-17.\ \qquad \text{si } \text{acc}_{\text{cand}} \geq \text{acc}_{\text{inc}} + \delta \text{ :} \\
+17.\ \qquad \textbf{si } \text{acc}_{\text{cand}} \geq \text{acc}_{\text{inc}} + \delta \textbf{ alors} \\
 18.\ \qquad\qquad I_{t+1}^{(k^\star,\, m^\star)} \leftarrow I_{t+1}^{\text{cand}} \\
 19.\ \qquad\qquad t \leftarrow t + 1,\ \mathit{fails} \leftarrow 0 \\
-20.\ \qquad \text{sinon :} \\
+20.\ \qquad \textbf{sinon} \\
 21.\ \qquad\qquad \mathit{fails} \leftarrow \mathit{fails} + 1 \\
 22.\ \qquad E_t \leftarrow \emptyset \\
 23.\ \qquad \mathit{cursor} \leftarrow \mathit{cursor} + w_{\text{eval}} \\
-24.\ \qquad \text{si } \mathit{fails} \geq \text{patience} \text{ : sortir} \\
-25.\ \text{retourner } I_t
+24.\ \qquad \textbf{si } \mathit{fails} \geq \text{patience} \textbf{ alors sortir} \\
+25.\ \textbf{retourner } I_t
 \end{array}
 ```
 
@@ -381,28 +380,26 @@ Pour situer MILPO dans la filiation directe de ProTeGi (Pryzant et al. 2023), vo
 
 ```math
 \begin{array}{l}
-\text{ProTeGi (Pryzant et al., 2023)} \\
-\text{Entrée : } p_0,\ b = 4,\ r = 6,\ \mathrm{m} \\
-\text{Sortie : } \hat{p} \\
-\\
+\textbf{ProTeGi (Pryzant et al., 2023)} \\[4pt]
+\textbf{Entree : } p_0,\ b = 4,\ r = 6,\ \mathrm{m} \\
+\textbf{Sortie : } \hat{p} \\[4pt]
 1.\ \mathcal{B}_0 \leftarrow \{p_0\} \\
-2.\ \text{pour } i \leftarrow 1 \text{ à } r-1 \text{ :} \\
+2.\ \textbf{pour } i \leftarrow 1 \textbf{ a } r-1 \textbf{ faire} \\
 3.\ \quad \mathcal{C} \leftarrow \emptyset \\
-4.\ \quad \text{pour tout } p \in \mathcal{B}_i \text{ :} \\
+4.\ \quad \textbf{pour tout } p \in \mathcal{B}_i \textbf{ faire} \\
 5.\ \qquad \mathcal{C} \leftarrow \mathcal{C} \cup \text{Expand}(p) \\
 6.\ \quad \mathcal{B}_{i+1} \leftarrow \text{Select}_b(\mathcal{C},\, \mathrm{m}) \\
 7.\ \hat{p} \leftarrow \operatorname*{argmax}_{p \in \mathcal{B}_r} \mathrm{m}(p) \\
-8.\ \text{retourner } \hat{p} \\
-\\
-\text{Expand}(p)\text{ :} \\
-\text{E1. } \mathcal{D}_{\text{mini}} \subset \mathcal{D}_{\text{train}},\ |\mathcal{D}_{\text{mini}}| = 64 \\
-\text{E2. } \text{évaluer } p \text{ sur } \mathcal{D}_{\text{mini}},\ \text{collecter les erreurs } e \\
-\text{E3. } g_1,\ldots,g_m \leftarrow \mathrm{LLM}_{\nabla}(p,\, e) \\
-\text{E4. } \text{pour chaque } g_i \text{ :} \\
-\text{E5. } \quad p^{\prime}_{i1},\ldots,p^{\prime}_{iq} \leftarrow \mathrm{LLM}_{\delta}(p,\, g_i,\, e) \\
-\text{E6. } \quad \text{pour chaque } p^{\prime}_{ij} \text{ :} \\
-\text{E7. } \qquad p^{\prime\prime}_{ij1},\ldots,p^{\prime\prime}_{ijp} \leftarrow \mathrm{LLM}_{\text{mc}}(p^{\prime}_{ij}) \\
-\text{E8. } \qquad \text{retourner } \{p^{\prime}\} \cup \{p^{\prime\prime}\}
+8.\ \textbf{retourner } \hat{p} \\[6pt]
+\textbf{Expand}(p) \\
+\text{E1.}\ \mathcal{D}_{\text{mini}} \subset \mathcal{D}_{\text{train}},\ |\mathcal{D}_{\text{mini}}| = 64 \\
+\text{E2.}\ \text{evaluer } p \text{ sur } \mathcal{D}_{\text{mini}},\ \text{collecter les erreurs } e \\
+\text{E3.}\ g_1,\ldots,g_m \leftarrow \mathrm{LLM}_{\nabla}(p,\, e) \\
+\text{E4.}\ \textbf{pour chaque } g_i \textbf{ faire} \\
+\text{E5.}\ \quad p^{\prime}_{i1},\ldots,p^{\prime}_{iq} \leftarrow \mathrm{LLM}_{\delta}(p,\, g_i,\, e) \\
+\text{E6.}\ \quad \textbf{pour chaque } p^{\prime}_{ij} \textbf{ faire} \\
+\text{E7.}\ \qquad p^{\prime\prime}_{ij1},\ldots,p^{\prime\prime}_{ijp} \leftarrow \mathrm{LLM}_{\text{mc}}(p^{\prime}_{ij}) \\
+\text{E8.}\ \qquad \textbf{retourner } \{p^{\prime}\} \cup \{p^{\prime\prime}\}
 \end{array}
 ```
 
