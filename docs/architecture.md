@@ -43,9 +43,9 @@ Post → Router → détecte le type (FEED/REELS)
 
 | Rôle | Scope | Modèle | Modalités | Prix input/1M | Prix output/1M |
 |------|-------|--------|-----------|---------------|----------------|
-| Descripteur | FEED | Gemini 3 Flash Preview | image + vidéo + texte | $0.50 | $3.00 |
-| Descripteur | REELS | Gemini 3 Flash Preview | image + vidéo + audio + texte | $0.50 | $3.00 |
-| Classifieurs (×3) | tous | Qwen 3.5 Flash | texte seul | $0.065 | $0.065 |
+| Descripteur | FEED | Gemini 3 Flash Preview | image + vidéo + texte | \$0.50 | \$3.00 |
+| Descripteur | REELS | Gemini 3 Flash Preview | image + vidéo + audio + texte | \$0.50 | \$3.00 |
+| Classifieurs (×3) | tous | Qwen 3.5 Flash | texte seul | \$0.065 | \$0.065 |
 
 **Choix du descripteur** : Gemini 3 Flash Preview pour les deux scopes (commit `7e352ab`, 2026-04-06). Validation empirique :
 - Carousels jusqu'à 20 slides (max Instagram actuel) : ✓
@@ -53,7 +53,7 @@ Post → Router → détecte le type (FEED/REELS)
 - Détection audio (voix off, interview, musique) : ✓
 - Stabilité sous concurrence (10 parallèles, 2 vagues) : 18/18 ✓
 
-Alternatives écartées : **Qwen 3.5 Flash** (limite carousel à ~8 images, raw vide à 10+), **Gemini 2.5 Flash via Google AI Studio** (réponses vides + 503 *high demand* sous concurrence). Coût ~27× plus élevé que Qwen mais ~$50-130 sur tout le projet, acceptable pour la fiabilité.
+Alternatives écartées : **Qwen 3.5 Flash** (limite carousel à ~8 images, raw vide à 10+), **Gemini 2.5 Flash via Google AI Studio** (réponses vides + 503 *high demand* sous concurrence). Coût ~27× plus élevé que Qwen mais ~\$50-130 sur tout le projet, acceptable pour la fiabilité.
 
 #### Mécanisme d'output structuré
 
