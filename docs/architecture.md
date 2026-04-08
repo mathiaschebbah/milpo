@@ -302,27 +302,27 @@ L'humain annote **en aveugle** (sans voir la prédiction du modèle) pour évite
 
 Soient :
 
-- $\mathcal{D} = \{(x_i, m_i)\}_{i=1}^{N}$ l'ensemble des posts, où $x_i = (\text{image}_i, \text{vidéo}_i, \text{audio}_i, \text{caption}_i)$ est l'entrée multimodale et $m_i \in \{\text{FEED}, \text{REELS}\}$ le type de post.
-- $\mathcal{Y}_k^m$ l'espace des labels pour l'axe $k \in \{\text{cat}, \text{vf}, \text{str}\}$, scopé par le type $m$. Pour `visual_format` : $\mathcal{Y}_{\text{vf}}^{\text{FEED}} = \{\text{post\_*}\}$ (44 labels), $\mathcal{Y}_{\text{vf}}^{\text{REELS}} = \{\text{reel\_*}\}$ (16 labels). Pour `cat` et `str`, l'espace est identique quel que soit $m$.
-- $\Delta^m$ les descriptions taxonomiques scopées par type $m$ (rédigées par l'humain, fixes).
-- $I_t^{(k,m)}$ les instructions actives à l'itération $t$ pour l'agent $k$ scopé au type $m$. **C'est la partie optimisée par MILPO.**
-- $p_t^{(k,m)} = \bigl(I_t^{(k,m)}, \Delta^m\bigr)$ le prompt complet pour l'agent $(k,m)$ à l'itération $t$. Seul $I_t$ change au fil des itérations.
-- $f_\theta(x, p)$ le modèle de vision-langage (paramètres $\theta$ fixés, prompt $p$ injecté).
-- $h(x_i)^k \in \mathcal{Y}_k^{m_i}$ l'annotation humaine pour le post $x_i$ sur l'axe $k$.
-- $\mathcal{F}(x_i, p_{\text{desc}})$ la sortie du descripteur — features JSON extraites du post $x_i$ avec le prompt $p_{\text{desc}}$.
-- $\mathcal{R}(I_t, E_t, \Delta)$ le **rewriter** — fonction qui prend les instructions courantes, le buffer d'erreurs $E_t$ et les descriptions taxonomiques, et propose de nouvelles instructions candidates $I_{t+1}^{\text{cand}}$.
-- $\mathrm{m}(\mathcal{D}_{\text{eval}}, p)$ la métrique d'accuracy sur un ensemble d'évaluation $\mathcal{D}_{\text{eval}}$ avec le prompt $p$.
+- $`\mathcal{D} = \{(x_i, m_i)\}_{i=1}^{N}`$ l'ensemble des posts, où $`x_i = (\text{image}_i, \text{vidéo}_i, \text{audio}_i, \text{caption}_i)`$ est l'entrée multimodale et $`m_i \in \{\text{FEED}, \text{REELS}\}`$ le type de post.
+- $`\mathcal{Y}_k^m`$ l'espace des labels pour l'axe $`k \in \{\text{cat}, \text{vf}, \text{str}\}`$, scopé par le type $`m`$. Pour `visual_format` : $`\mathcal{Y}_{\text{vf}}^{\text{FEED}} = \{\text{post\_*}\}`$ (44 labels), $`\mathcal{Y}_{\text{vf}}^{\text{REELS}} = \{\text{reel\_*}\}`$ (16 labels). Pour `cat` et `str`, l'espace est identique quel que soit $`m`$.
+- $`\Delta^m`$ les descriptions taxonomiques scopées par type $`m`$ (rédigées par l'humain, fixes).
+- $`I_t^{(k,m)}`$ les instructions actives à l'itération $`t`$ pour l'agent $`k`$ scopé au type $`m`$. **C'est la partie optimisée par MILPO.**
+- $`p_t^{(k,m)} = \bigl(I_t^{(k,m)}, \Delta^m\bigr)`$ le prompt complet pour l'agent $`(k,m)`$ à l'itération $`t`$. Seul $`I_t`$ change au fil des itérations.
+- $`f_\theta(x, p)`$ le modèle de vision-langage (paramètres $`\theta`$ fixés, prompt $`p`$ injecté).
+- $`h(x_i)^k \in \mathcal{Y}_k^{m_i}`$ l'annotation humaine pour le post $`x_i`$ sur l'axe $`k`$.
+- $`\mathcal{F}(x_i, p_{\text{desc}})`$ la sortie du descripteur — features JSON extraites du post $`x_i`$ avec le prompt $`p_{\text{desc}}`$.
+- $`\mathcal{R}(I_t, E_t, \Delta)`$ le **rewriter** — fonction qui prend les instructions courantes, le buffer d'erreurs $`E_t`$ et les descriptions taxonomiques, et propose de nouvelles instructions candidates $`I_{t+1}^{\text{cand}}`$.
+- $`\mathrm{m}(\mathcal{D}_{\text{eval}}, p)`$ la métrique d'accuracy sur un ensemble d'évaluation $`\mathcal{D}_{\text{eval}}`$ avec le prompt $`p`$.
 
 Hyperparamètres fixés :
 
-- $B = 30$ : taille du mini-batch d'erreurs avant trigger du rewriter
-- $\delta = 0{,}02$ : seuil de gain minimum pour promotion d'un candidat
-- $\text{patience} = 3$ : nombre de rewrites consécutifs sans promotion avant arrêt
-- $w_{\text{eval}} = 30$ : taille du bloc d'évaluation post-rewrite
+- $`B = 30`$ : taille du mini-batch d'erreurs avant trigger du rewriter
+- $`\delta = 0{,}02`$ : seuil de gain minimum pour promotion d'un candidat
+- $`\text{patience} = 3`$ : nombre de rewrites consécutifs sans promotion avant arrêt
+- $`w_{\text{eval}} = 30`$ : taille du bloc d'évaluation post-rewrite
 
 ### Pipeline de classification d'un post
 
-Pour un post $x_i$ de type $m_i$ :
+Pour un post $`x_i`$ de type $`m_i`$ :
 
 ```math
 \text{features}_i = \mathcal{F}\bigl(x_i, p_t^{(\text{desc},\, m_i)}\bigr)
@@ -341,8 +341,8 @@ L'humain annote d'abord tous les posts dev. La simulation rejoue ensuite les ann
 
 **Algorithme MILPO_Prequential**
 
-- **Entrée** : $\mathcal{D}_{\text{dev}} = \{(x_i, h(x_i))\}_{i=1}^{N_{\text{dev}}}$, hyperparamètres $B, \delta, \text{patience}, w_{\text{eval}}$, modèle $f_\theta$, prompt initial $I_0$, descriptions $\Delta$
-- **Sortie** : prompt final $I_T$
+- **Entrée** : $`\mathcal{D}_{\text{dev}} = \{(x_i, h(x_i))\}_{i=1}^{N_{\text{dev}}}`$, hyperparamètres $`B, \delta, \text{patience}, w_{\text{eval}}`$, modèle $`f_\theta`$, prompt initial $`I_0`$, descriptions $`\Delta`$
+- **Sortie** : prompt final $`I_T`$
 
 ```text
  1.  t ← 0,  E_t ← ∅,  fails ← 0,  cursor ← 0
@@ -372,7 +372,7 @@ L'humain annote d'abord tous les posts dev. La simulation rejoue ensuite les ann
 25.  retourner I_t
 ```
 
-**Note** : les annotations $h(x_i)$ sont pré-existantes (annotation offline), la simulation les rejoue de façon déterministe. L'humain annote en aveugle (sans voir la prédiction du modèle) pour éviter le biais.
+**Note** : les annotations $`h(x_i)`$ sont pré-existantes (annotation offline), la simulation les rejoue de façon déterministe. L'humain annote en aveugle (sans voir la prédiction du modèle) pour éviter le biais.
 
 ### Comparaison avec l'algorithme ProTeGi
 
@@ -380,8 +380,8 @@ Pour situer MILPO dans la filiation directe de ProTeGi (Pryzant et al. 2023), vo
 
 **Algorithme ProTeGi** (Pryzant et al., 2023)
 
-- **Entrée** : prompt initial $p_0$, beam width $b = 4$, profondeur $r = 6$, métrique $\mathrm{m}$
-- **Sortie** : meilleur prompt $\hat{p}$
+- **Entrée** : prompt initial $`p_0`$, beam width $`b = 4`$, profondeur $`r = 6`$, métrique $`\mathrm{m}`$
+- **Sortie** : meilleur prompt $`\hat{p}`$
 
 ```text
 1.  B_0 ← { p_0 }
@@ -408,10 +408,10 @@ Expand(p) :
 
 | Aspect | ProTeGi | MILPO |
 |---|---|---|
-| Beam search | Oui ($b=4$) | Non (1 incumbent à la fois) |
-| Sélection | Bandit (UCB / Successive Rejects) | Promotion si $\text{acc}_{\text{cand}} \geq \text{acc}_{\text{inc}} + \delta$ |
-| LLMs dans la boucle | 3 (critic + editor + paraphraser) | 1 (rewriter unifié $\mathcal{R}$) |
-| Cible de l'optimisation | 1 prompt $p_0$ | 6 prompts ($\text{desc}$ FEED/REELS + cat + vf FEED/REELS + str), sélection par `pick_target` |
+| Beam search | Oui ($`b=4`$) | Non (1 incumbent à la fois) |
+| Sélection | Bandit (UCB / Successive Rejects) | Promotion si $`\text{acc}_{\text{cand}} \geq \text{acc}_{\text{inc}} + \delta`$ |
+| LLMs dans la boucle | 3 (critic + editor + paraphraser) | 1 (rewriter unifié $`\mathcal{R}`$) |
+| Cible de l'optimisation | 1 prompt $`p_0`$ | 6 prompts ($`\text{desc}`$ FEED/REELS + cat + vf FEED/REELS + str), sélection par `pick_target` |
 | Search depth | 6 étapes fixes | Jusqu'à `patience` rewrites consécutifs sans promotion |
 | Mini-batch | 64 exemples | 30 erreurs (pas exemples) |
 | Modalité | Texte | Multimodal (image + vidéo + audio + texte) |
@@ -421,4 +421,4 @@ Expand(p) :
 - **Convergence** : le prompt se stabilise-t-il ? Mesurable via la courbe accuracy en rolling window (fenêtre 50) vs nombre d'annotations — on s'attend à un plateau.
 - **Monotonicité** : le mécanisme de rollback garantit que la performance ne décroît pas (en théorie). À vérifier empiriquement via l'ablation A5 (sans rollback).
 - **Efficacité en annotations** : combien d'annotations pour atteindre le plateau ? C'est le chiffre clé pour comprendre la dynamique de convergence et le coût d'annotation effectif.
-- **Sensibilité à la taille de batch** : comment $B$ affecte-t-il la fréquence et la qualité des rewrites ? Ablations sur $B \in \{1, 10, 30, 50\}$ rejouables sur les mêmes annotations sans réannoter.
+- **Sensibilité à la taille de batch** : comment $`B`$ affecte-t-il la fréquence et la qualité des rewrites ? Ablations sur $`B \in \{1, 10, 30, 50\}`$ rejouables sur les mêmes annotations sans réannoter.
