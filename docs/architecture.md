@@ -339,37 +339,37 @@ Le pipeline appelle **1 fois le descripteur** (multimodal, coûteux) puis **3 fo
 L'humain annote d'abord tous les posts dev. La simulation rejoue ensuite les annotations dans l'ordre de présentation déterministe (`presentation_order`, `seed=42`) et optimise les instructions.
 
 $$
-\begin{aligned}
-&\text{\textbf{Algorithme :}}\ \text{MILPO\_Prequential} \\[0.35em]
-&\text{\textbf{Entrée :}}\ \mathcal{D}_{\text{dev}} = \{(x_i, h(x_i))\}_{i=1}^{N_{\text{dev}}},\ B,\ \delta,\ \text{patience},\ w_{\text{eval}},\ f_\theta,\ I_0,\ \Delta \\
-&\text{\textbf{Sortie :}}\ I_T\ \text{(instructions optimisées)} \\[0.5em]
-&1.\quad t \leftarrow 0,\quad E_t \leftarrow \emptyset,\quad \textit{fails} \leftarrow 0,\quad \textit{cursor} \leftarrow 0 \\
-&2.\quad \text{\textbf{tant que}}\ \textit{cursor} < N_{\text{dev}}\ \text{\textbf{:}} \\
-&3.\quad\quad x_i \leftarrow \mathcal{D}_{\text{dev}}[\textit{cursor}] \\
-&4.\quad\quad \text{features}_i \leftarrow \mathcal{F}\bigl(x_i,\ (I_t^{(\text{desc},\, m_i)},\, \Delta^{m_i})\bigr) \\
-&5.\quad\quad \text{\textbf{pour chaque}}\ k \in \{\text{cat}, \text{vf}, \text{str}\}\ \text{\textbf{en parallèle :}} \\
-&6.\quad\quad\quad \hat{y}_i^k \leftarrow f_\theta\bigl(\text{features}_i,\, \text{caption}_i,\ (I_t^{(k,\, m_i)},\, \Delta^{m_i})\bigr) \\
-&7.\quad\quad \text{\textbf{pour chaque}}\ k\ \text{\textbf{:}} \\
-&8.\quad\quad\quad \text{\textbf{si}}\ h(x_i)^k \neq \hat{y}_i^k\ \text{\textbf{:}} \\
-&9.\quad\quad\quad\quad E_t \leftarrow E_t \cup \{(x_i,\, \text{features}_i,\, h(x_i)^k,\, \hat{y}_i^k,\, k,\, m_i)\} \\
-&10.\quad\quad \textit{cursor} \leftarrow \textit{cursor} + 1 \\
-&11.\quad\quad \text{\textbf{si}}\ |E_t| \geq B\ \text{\textbf{:}} \\
-&12.\quad\quad\quad (k^\star,\, m^\star) \leftarrow \text{pick\_target}(E_t) \\
-&13.\quad\quad\quad I_{t+1}^{\text{cand}} \leftarrow \mathcal{R}\bigl(I_t^{(k^\star,\, m^\star)},\, E_t,\, \Delta\bigr) \\
-&14.\quad\quad\quad \mathcal{S}_{\text{eval}} \leftarrow \mathcal{D}_{\text{dev}}[\textit{cursor}\,:\,\textit{cursor} + w_{\text{eval}}] \\
-&15.\quad\quad\quad \text{acc}_{\text{inc}} \leftarrow \mathrm{m}\bigl(\mathcal{S}_{\text{eval}},\, (I_t^{(k^\star,\, m^\star)},\, \Delta)\bigr) \\
-&16.\quad\quad\quad \text{acc}_{\text{cand}} \leftarrow \mathrm{m}\bigl(\mathcal{S}_{\text{eval}},\, (I_{t+1}^{\text{cand}},\, \Delta)\bigr) \\
-&17.\quad\quad\quad \text{\textbf{si}}\ \text{acc}_{\text{cand}} \geq \text{acc}_{\text{inc}} + \delta\ \text{\textbf{:}} \\
-&18.\quad\quad\quad\quad I_{t+1}^{(k^\star,\, m^\star)} \leftarrow I_{t+1}^{\text{cand}} \qquad \text{(promotion)} \\
-&19.\quad\quad\quad\quad t \leftarrow t + 1,\quad \textit{fails} \leftarrow 0 \\
-&20.\quad\quad\quad \text{\textbf{sinon :}} \\
-&21.\quad\quad\quad\quad \text{rejeter}\ I_{t+1}^{\text{cand}} \qquad \text{(rollback)},\quad \textit{fails} \leftarrow \textit{fails} + 1 \\
-&22.\quad\quad\quad E_t \leftarrow \emptyset \\
-&23.\quad\quad\quad \textit{cursor} \leftarrow \textit{cursor} + w_{\text{eval}} \\
-&24.\quad\quad\quad \text{\textbf{si}}\ \textit{fails} \geq \text{patience}\ \text{\textbf{:}}\ \text{\textbf{sortir}} \\
-&25.\quad \text{\textbf{fin tant que}} \\
-&26.\quad \text{\textbf{retourner}}\ I_t
-\end{aligned}
+\begin{array}{ll}
+\text{Algorithme :} & \text{MILPO\_Prequential} \\[0.25em]
+\text{Entrée :} & \mathcal{D}_{\text{dev}} = \{(x_i, h(x_i))\}_{i=1}^{N_{\text{dev}}},\ B,\ \delta,\ \text{patience}, \\
+& w_{\text{eval}},\ f_\theta,\ I_0,\ \Delta \\
+\text{Sortie :} & I_T\ \text{(instructions optimisées)} \\[0.4em]
+1. & t \leftarrow 0,\ E_t \leftarrow \emptyset,\ \mathit{fails} \leftarrow 0,\ \mathit{cursor} \leftarrow 0 \\
+2. & \text{Tant que } \mathit{cursor} < N_{\text{dev}} : \\
+3. & \quad x_i \leftarrow \mathcal{D}_{\text{dev}}[\mathit{cursor}] \\
+4. & \quad \text{features}_i \leftarrow \mathcal{F}\bigl(x_i,\ (I_t^{(\text{desc},\, m_i)},\, \Delta^{m_i})\bigr) \\
+5. & \quad \text{Pour chaque } k \in \{\text{cat}, \text{vf}, \text{str}\} \text{ en parallèle :} \\
+6. & \qquad \hat{y}_i^k \leftarrow f_\theta\bigl(\text{features}_i,\, \text{caption}_i,\ (I_t^{(k,\, m_i)},\, \Delta^{m_i})\bigr) \\
+7. & \quad \text{Pour chaque } k : \\
+8. & \qquad \text{Si } h(x_i)^k \neq \hat{y}_i^k : \\
+9. & \qquad\qquad E_t \leftarrow E_t \cup \{(x_i,\, \text{features}_i,\, h(x_i)^k,\, \hat{y}_i^k,\, k,\, m_i)\} \\
+10. & \quad \mathit{cursor} \leftarrow \mathit{cursor} + 1 \\
+11. & \quad \text{Si } |E_t| \geq B : \\
+12. & \qquad (k^\star,\, m^\star) \leftarrow \text{pick\_target}(E_t) \\
+13. & \qquad I_{t+1}^{\text{cand}} \leftarrow \mathcal{R}\bigl(I_t^{(k^\star,\, m^\star)},\, E_t,\, \Delta\bigr) \\
+14. & \qquad \mathcal{S}_{\text{eval}} \leftarrow \mathcal{D}_{\text{dev}}[\mathit{cursor}:\mathit{cursor} + w_{\text{eval}}] \\
+15. & \qquad \text{acc}_{\text{inc}} \leftarrow \mathrm{m}\bigl(\mathcal{S}_{\text{eval}},\, (I_t^{(k^\star,\, m^\star)},\, \Delta)\bigr) \\
+16. & \qquad \text{acc}_{\text{cand}} \leftarrow \mathrm{m}\bigl(\mathcal{S}_{\text{eval}},\, (I_{t+1}^{\text{cand}},\, \Delta)\bigr) \\
+17. & \qquad \text{Si } \text{acc}_{\text{cand}} \geq \text{acc}_{\text{inc}} + \delta : \\
+18. & \qquad\qquad I_{t+1}^{(k^\star,\, m^\star)} \leftarrow I_{t+1}^{\text{cand}} \\
+19. & \qquad\qquad t \leftarrow t + 1,\ \mathit{fails} \leftarrow 0 \\
+20. & \qquad \text{Sinon :} \\
+21. & \qquad\qquad \mathit{fails} \leftarrow \mathit{fails} + 1 \\
+22. & \qquad E_t \leftarrow \emptyset \\
+23. & \qquad \mathit{cursor} \leftarrow \mathit{cursor} + w_{\text{eval}} \\
+24. & \qquad \text{Si } \mathit{fails} \geq \text{patience} : \text{ sortir} \\
+25. & \text{Retourner } I_t
+\end{array}
 $$
 
 **Note** : les annotations $h(x_i)$ sont pré-existantes (annotation offline), la simulation les rejoue de façon déterministe. L'humain annote en aveugle (sans voir la prédiction du modèle) pour éviter le biais.
@@ -379,28 +379,28 @@ $$
 Pour situer MILPO dans la filiation directe de ProTeGi (Pryzant et al. 2023), voici l'algorithme principal de ProTeGi (Algorithm 1 du papier, traduit) :
 
 $$
-\begin{aligned}
-&\text{\textbf{Algorithme :}}\ \text{ProTeGi (Pryzant et al., 2023)} \\[0.35em]
-&\text{\textbf{Entrée :}}\ p_0\ \text{(prompt initial)},\ b\ \text{(beam width)} = 4,\ r\ \text{(profondeur)} = 6,\ \mathrm{m}\ \text{(métrique)} \\
-&\text{\textbf{Sortie :}}\ \hat{p}\ \text{(prompt optimisé)} \\[0.5em]
-&1.\quad \mathcal{B}_0 \leftarrow \{p_0\} \\
-&2.\quad \text{\textbf{pour}}\ i \leftarrow 1\ \text{\textbf{à}}\ r-1\ \text{\textbf{:}} \\
-&3.\quad\quad \mathcal{C} \leftarrow \emptyset \\
-&4.\quad\quad \text{\textbf{pour tout}}\ p \in \mathcal{B}_i\ \text{\textbf{:}} \\
-&5.\quad\quad\quad \mathcal{C} \leftarrow \mathcal{C} \cup \text{Expand}(p) \\
-&6.\quad\quad \mathcal{B}_{i+1} \leftarrow \text{Select}_b(\mathcal{C},\, \mathrm{m}) \\
-&7.\quad \hat{p} \leftarrow \operatorname*{argmax}_{p \in \mathcal{B}_r} \mathrm{m}(p) \\
-&8.\quad \text{\textbf{retourner}}\ \hat{p} \\[0.75em]
-&\text{\textbf{Sous-routine}}\ \text{Expand}(p)\text{\textbf{:}} \\
-&E1.\quad \text{Échantillonner un mini-batch}\ \mathcal{D}_{\text{mini}} \subset \mathcal{D}_{\text{train}},\quad |\mathcal{D}_{\text{mini}}| = 64 \\
-&E2.\quad \text{Évaluer}\ p\ \text{sur}\ \mathcal{D}_{\text{mini}},\ \text{collecter les erreurs}\ e \\
-&E3.\quad g_1,\ldots,g_m \leftarrow \mathrm{LLM}_{\nabla}(p,\, e) \\
-&E4.\quad \text{\textbf{pour chaque}}\ g_i\ \text{\textbf{:}} \\
-&E5.\quad\quad p^{\prime}_{i1},\ldots,p^{\prime}_{iq} \leftarrow \mathrm{LLM}_{\delta}(p,\, g_i,\, e) \\
-&E6.\quad\quad \text{\textbf{pour chaque}}\ p^{\prime}_{ij}\ \text{\textbf{:}} \\
-&E7.\quad\quad\quad p^{\prime\prime}_{ij1},\ldots,p^{\prime\prime}_{ijp} \leftarrow \mathrm{LLM}_{\text{mc}}(p^{\prime}_{ij}) \\
-&E8.\quad\quad \text{\textbf{retourner}}\ \{p^{\prime}\} \cup \{p^{\prime\prime}\}
-\end{aligned}
+\begin{array}{ll}
+\text{Algorithme :} & \text{ProTeGi (Pryzant et al., 2023)} \\[0.25em]
+\text{Entrée :} & p_0\ \text{(prompt initial)},\ b = 4,\ r = 6,\ \mathrm{m}\ \text{(métrique)} \\
+\text{Sortie :} & \hat{p}\ \text{(prompt optimisé)} \\[0.4em]
+1. & \mathcal{B}_0 \leftarrow \{p_0\} \\
+2. & \text{Pour } i \leftarrow 1 \text{ à } r-1 : \\
+3. & \quad \mathcal{C} \leftarrow \emptyset \\
+4. & \quad \text{Pour tout } p \in \mathcal{B}_i : \\
+5. & \qquad \mathcal{C} \leftarrow \mathcal{C} \cup \text{Expand}(p) \\
+6. & \quad \mathcal{B}_{i+1} \leftarrow \text{Select}_b(\mathcal{C},\, \mathrm{m}) \\
+7. & \hat{p} \leftarrow \operatorname*{argmax}_{p \in \mathcal{B}_r} \mathrm{m}(p) \\
+8. & \text{Retourner } \hat{p} \\[0.6em]
+\text{Sous-routine :} & \text{Expand}(p) \\
+\text{E1.} & \mathcal{D}_{\text{mini}} \subset \mathcal{D}_{\text{train}},\quad |\mathcal{D}_{\text{mini}}| = 64 \\
+\text{E2.} & \text{Évaluer } p \text{ sur } \mathcal{D}_{\text{mini}},\ \text{collecter les erreurs } e \\
+\text{E3.} & g_1,\ldots,g_m \leftarrow \mathrm{LLM}_{\nabla}(p,\, e) \\
+\text{E4.} & \text{Pour chaque } g_i : \\
+\text{E5.} & \qquad p^{\prime}_{i1},\ldots,p^{\prime}_{iq} \leftarrow \mathrm{LLM}_{\delta}(p,\, g_i,\, e) \\
+\text{E6.} & \qquad \text{Pour chaque } p^{\prime}_{ij} : \\
+\text{E7.} & \qquad\qquad p^{\prime\prime}_{ij1},\ldots,p^{\prime\prime}_{ijp} \leftarrow \mathrm{LLM}_{\text{mc}}(p^{\prime}_{ij}) \\
+\text{E8.} & \qquad \text{Retourner } \{p^{\prime}\} \cup \{p^{\prime\prime}\}
+\end{array}
 $$
 
 **Différences structurelles MILPO ↔ ProTeGi** :
