@@ -1,50 +1,129 @@
 ---
 name: setup
 description: >
-  Initialise le contexte du projet MILPO en début de conversation. Lit l'état du projet (CLAUDE.md, phases, stack), l'historique git récent, vérifie les services (Postgres, backend, frontend), et présente un résumé. Utiliser en début de chaque session.
+  Initialise le contexte du projet MILPO en début de conversation. Depuis v3.3, ne lit PLUS les docs/ narratives (supprimées car elles dérivaient) : inspecte activement le code, la BDD et les services pour reconstruire un état exact. Utiliser en début de chaque session.
 ---
 
-# Setup — Initialisation du contexte MILPO
+# Setup — Initialisation du contexte MILPO (v3.3)
 
-Au lancement de cette commande, exécute les étapes suivantes pour te mettre à jour sur l'état du projet.
+**Philosophie** : la source de vérité est le code + la BDD, pas des résumés narratifs. Ce skill reconstruit le contexte à la volée pour éviter de s'appuyer sur de la doc qui pourrit entre deux sessions (cf. `docs/note_intelligence_artificielle.md` et changelog CLAUDE.md v3.3).
 
-## Étape 1 — Lire l'état du projet
+Exécute les étapes suivantes, en parallélisant autant que possible.
 
-Lis les fichiers suivants (en parallèle) :
+## Étape 1 — Lire CLAUDE.md et la matière mémoire conservée
 
-1. `CLAUDE.md` — index versionné + changelog
-2. Tous les fichiers du dossier docs/
-3. Analyse le codebase entièrement avec 5 sub-agents pour résumer là ou on en est.
+Lis en parallèle :
 
-## Étape 2 — Historique git récent
+1. `CLAUDE.md` — index + changelog (source canonique de l'état narratif du projet)
+2. `docs/note_intelligence_artificielle.md` — lecture réflexive de Mathias sur l'usage de l'IA
+3. `docs/project.md` — hypothèses H1/H2/H3, claim, positionnement
+4. `docs/related_work.md` — ProTeGi, DSPy, iPrOp
+5. `docs/evaluation.md` — protocole, métriques, résultats B0
 
-Lance `git log --oneline -15` pour voir les derniers commits et comprendre où on en est.
+Ces fichiers sont **de la matière mémoire brute** (décisions, chiffres, hypothèses qui ne sont pas dérivables du code). Tout le reste doit être reconstruit depuis le code et la BDD.
 
-## Étape 3 — État du working tree
+## Étape 2 — Inspection active du code
 
-Lance `git status` pour voir s'il y a du travail en cours non commité.
+En parallèle :
+
+- `ls milpo/` — modules du moteur MILPO
+- `ls apps/backend/app/` et `ls apps/frontend/src/` — structure des apps
+- `ls scripts/` — scripts d'import, simulation, features
+- `ls related_work/` — baselines (DSPy, etc.)
+- Read `pyproject.toml` (racine) — dépendances Python + deps optionnelles (dspy)
+- Read `apps/frontend/package.json` — deps frontend
+
+Ouvre **au moins** ces modules clés pour savoir ce qui tourne vraiment :
+
+- `milpo/db.py` — accès BDD, fonctions `get_active_prompt`, `promote_prompt`, signatures à jour
+- `milpo/rewriter.py` — logique de rewriting des prompts
+- `scripts/run_simulation.py` — orchestration de la boucle prequential
+- `scripts/run_baseline.py` — B0 et modes DSPy
+
+## Étape 3 — Inspection de la BDD
+
+Les credentials sont dans `.env` (`HILPO_*` — nom hérité avant le rename v3.0). Utilise `PGPASSWORD=postgres psql -h localhost -p 5433 -U postgres -d hilpo` (vérifier le nom de la DB dans `.env` en cas de doute).
+
+Commandes utiles (à lancer en parallèle) :
+
+```sql
+-- Tables et schéma
+\dt
+
+-- Volumétrie posts et annotations
+SELECT COUNT(*) FROM posts;
+SELECT split, COUNT(*) FROM posts WHERE split IS NOT NULL GROUP BY split;
+SELECT COUNT(*) FROM annotations;
+
+-- Prompts actifs (par agent, scope, source)
+SELECT agent, scope, source, version, LEFT(content, 80) AS preview
+FROM prompt_versions
+WHERE status = 'active' AND simulation_run_id IS NULL
+ORDER BY agent, scope, source;
+
+-- Derniers simulation_runs
+SELECT id, kind, started_at, finished_at, total_cost_usd, notes
+FROM simulation_runs
+ORDER BY id DESC LIMIT 5;
+
+-- Migrations appliquées
+\dn
+\d prompt_versions  -- vérifier que la colonne `source` existe (migration 007)
+```
 
 ## Étape 4 — Vérifier les services
 
-Vérifie si Docker Postgres et les serveurs (backend/frontend) tournent :
-- `docker compose ps` (Postgres)
-- `lsof -ti :8000` (backend FastAPI)
-- `lsof -ti :5173` (frontend Vite)
+- `docker compose ps` — Postgres
+- `lsof -ti :8000` — backend FastAPI
+- `lsof -ti :5173` — frontend Vite
 
-## Étape 5 — Synthèse
+## Étape 5 — Historique git
 
-Présente un résumé concis à l'utilisateur :
+- `git log --oneline -15` — derniers commits
+- `git status` — working tree
+
+## Étape 6 — Synthèse
+
+Présente un résumé concis :
 
 ```
-MILPO — État du projet
-======================
-Version CLAUDE.md : vX.Y
-Dernier commit    : <message>
-Phase active      : <phase et statut>
-Services          : Postgres ✓/✗ | Backend ✓/✗ | Frontend ✓/✗
+MILPO — État du projet (reconstruit depuis code + BDD)
+======================================================
+Version CLAUDE.md : vX.Y (dernier changelog : <résumé 1 ligne>)
+Dernier commit    : <hash> <message>
 Working tree      : clean / N fichiers modifiés
 
-Direction : <prochaine étape logique basée sur les phases>
+Code
+----
+- milpo/ : <modules principaux détectés>
+- apps/backend : <modules détectés>
+- apps/frontend : <modules détectés>
+- scripts/ : <scripts détectés>
+- related_work/ : <baselines détectées>
+
+BDD (hilpo @ localhost:5433)
+----------------------------
+- Posts : N total, dev=X / test=Y / unassigned=Z
+- Annotations : N
+- Prompts actifs : <agent/scope/source/version pour chacun>
+- Dernier run : id=N, kind=..., cost=$..., <résumé>
+
+Services
+--------
+Postgres ✓/✗ | Backend ✓/✗ | Frontend ✓/✗
+
+Mémoire / contexte
+------------------
+- Matière mémoire disponible : project.md, related_work.md, evaluation.md, note_intelligence_artificielle.md
+- Hypothèses actives : H1/H2/H3 (résumé 1 ligne chacune depuis project.md)
 ```
 
-Puis demande : "On continue sur quoi ?"
+Puis demande : « On continue sur quoi ? »
+
+## Ce que ce skill NE fait plus (vs v3.2)
+
+- ❌ Lire tout `docs/` — les docs narratives dérivantes ont été supprimées en v3.3
+- ❌ Lancer 5 sub-agents pour résumer le codebase — coûteux et produit une narration qui se substituera au code
+- ❌ Mettre à jour `docs/agent_perspective.md` — fichier supprimé, hook retiré
+
+La logique est inversée : **regarde ce qui EST, ne lis pas ce qui a été ÉCRIT sur ce qui est**.

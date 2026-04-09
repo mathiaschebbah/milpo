@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""PostToolUse hook — rappelle de mettre à jour CLAUDE.md après un git commit."""
+"""PostToolUse hook — rappelle de mettre à jour CLAUDE.md après un git commit.
+
+Depuis v3.3 : ne demande plus d'auditer docs/ (les docs narratives ont été
+supprimées car elles dérivaient). Le hook se contente de rappeler que
+CLAUDE.md (index + changelog) doit rester à jour quand le commit est
+structurellement significatif (nouvelle migration, refactor, reset de doc,
+changement de protocole, etc.).
+"""
 
 import json
 import sys
@@ -21,23 +28,23 @@ def main():
         print(json.dumps({}))
         return
 
-    message = """**INSTRUCTION OBLIGATOIRE — Exécute les étapes suivantes avant de répondre à l'utilisateur.**
+    message = """**Rappel CLAUDE.md (post-commit).**
 
-1. **Audit avec sub-agent** : lance des sub-agents Explore pour comparer les fichiers `docs/` avec l'état actuel du code et du projet. Le sub-agent doit vérifier :
-   - `docs/architecture.md` vs le code réel (apps/backend/, apps/frontend/, milpo/)
-   - `docs/schema.md` vs le schéma BDD actuel (tables, colonnes, contraintes)
-   - `docs/phases.md` vs l'avancement réel (annotations, phases implémentées)
-   - `docs/stack.md` vs les dépendances réelles (pyproject.toml, package.json)
-   - `docs/data.md` vs les données en BDD (nombre de posts, formats, splits)
-   - `docs/evaluation.md` vs le protocole décrit (métriques, ablations, baselines)
-   - `docs/conventions.md` vs les hooks et skills réellement configurés
-   - `docs/agent_perspective.md` vs la perspective de l'agent
-   - `docs/related_work.md` vs l'état de l'ar
-   Tout autre dossier dans docs/ qui n'est pas listé ci-dessus doit être vérifié.
-   Signaler les incohérences trouvées.
-2. Revois ce qui a été fait dans ce commit (fichiers créés/modifiés, décisions prises).
-3. Utilise AskUserQuestion pour présenter les changements détectés + incohérences. Toujours proposer "Rien à mettre à jour".
-4. Si confirmé : mets à jour les docs/ concernés, incrémente la version CLAUDE.md et update le fichier CLAUDE.md, ajoute au changelog, commit séparé avec `docs: update CLAUDE.md`."""
+Philosophie v3.3 : la source de vérité est le code + la BDD, pas des résumés narratifs. docs/ est volontairement minimal. Ne régénère PAS de doc narrative pour « documenter » ce commit.
+
+Vérifie si ce commit justifie une entrée changelog dans CLAUDE.md :
+
+- ✅ OUI si : nouvelle migration BDD, refactor structurel, changement de protocole / de stack, reset de doc, décision projet importante, pivot de positionnement.
+- ❌ NON si : fix de bug mineur, tweak de prompt, changement d'UI, itération normale.
+
+Si OUI :
+1. Incrémente la version CLAUDE.md (patch : +0.1).
+2. Ajoute une ligne au changelog qui explique le *pourquoi* (pas juste le *quoi*).
+3. Commit séparé `docs: update CLAUDE.md vX.Y — <résumé court>`.
+
+Si NON : ne fais rien, continue le travail en cours.
+
+**Ne touche pas aux fichiers supprimés en v3.3** (architecture.md, stack.md, schema.md, data.md, phases.md, planning.md, conventions.md, agent_perspective.md, prompts_v0.md). S'ils doivent exister à nouveau, demande à Mathias d'abord via AskUserQuestion."""
 
     print(json.dumps({
         "hookSpecificOutput": {
