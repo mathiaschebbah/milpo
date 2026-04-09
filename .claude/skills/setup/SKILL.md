@@ -83,6 +83,23 @@ ORDER BY id DESC LIMIT 5;
 - `lsof -ti :8000` — backend FastAPI
 - `lsof -ti :5173` — frontend Vite
 
+## Étape 4bis — Vérifier les credentials GCS ADC
+
+Les médias Views sont servis depuis un bucket GCS privé (`postfinder-media-dev`). Le backend signe les URLs V4 via `apps/backend/app/gcs.py`, qui s'appuie sur les **Application Default Credentials** locales (`google.auth.default()`). Ces credentials expirent régulièrement — quand c'est le cas, le backend log une `RefreshError` mais renvoie silencieusement les URLs non signées, et le frontend ne peut pas afficher les médias → l'annotation est bloquée.
+
+Diagnostic (une seule commande, rapide) :
+
+```bash
+gcloud auth application-default print-access-token >/dev/null 2>&1 && echo "GCS ADC ✓" || echo "GCS ADC ✗ (expired)"
+```
+
+- ✓ → rien à faire, les URLs seront signées.
+- ✗ → **ne pas lancer la commande `gcloud` toi-même** (elle est interactive, ouvre un navigateur). Mentionne-le dans la synthèse et suggère à Mathias de lancer :
+  ```
+  ! gcloud auth application-default login
+  ```
+  Le préfixe `!` exécute la commande dans la session Claude Code. Après ré-auth, **il faut redémarrer le backend** (les credentials sont mis en cache dans le process au premier appel — un simple kill + relance d'uvicorn suffit).
+
 ## Étape 5 — Historique git
 
 - `git log --oneline -15` — derniers commits
@@ -116,7 +133,8 @@ BDD (hilpo @ localhost:5433)
 
 Services
 --------
-Postgres ✓/✗ | Backend ✓/✗ | Frontend ✓/✗
+Postgres ✓/✗ | Backend ✓/✗ | Frontend ✓/✗ | GCS ADC ✓/✗
+(si GCS ADC ✗ → suggérer `! gcloud auth application-default login` + redémarrage backend)
 
 Mémoire / contexte
 ------------------
