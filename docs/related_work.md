@@ -22,40 +22,42 @@ Hyperparamètres utilisés dans le papier : minibatch de 64 exemples, beam width
 
 | Composant | ProTeGi | MILPO |
 |---|---|---|
-| **Optimiseur** | Mini-batch d'erreurs + gradient textuel | Mini-batch d'erreurs (B=30) + rewriter unifié |
-| **Nombre de LLMs dans la boucle** | 3 (critic + editor + paraphraser) | 1 (rewriter unifié) |
-| **Sélection des candidats** | Beam search ($b=4$) + bandits (UCB / Successive Rejects) | Promotion simple si $\Delta$accuracy ≥ 2%, sinon rollback |
+| **Optimiseur** | Mini-batch d'erreurs + gradient textuel | Mini-batch d'erreurs (B=30) + gradient textuel séparé (LLM_∇) |
+| **Nombre de LLMs dans la boucle** | 3 (critic + editor + paraphraser) | 3 (critic + editor + paraphraser) |
+| **Sélection des candidats** | Beam search ($b=4$) + bandits (UCB / Successive Rejects) | Successive Rejects (Audibert & Bubeck 2010) sur $c \cdot p$ candidats post-édition, puis promotion si $\Delta$accuracy ≥ 2%, sinon rollback |
 | **Search depth** | 6 steps fixes | Variable (jusqu'à `patience=3` rewrites consécutifs sans promotion) |
 | **Modalité** | Texte uniquement | Multimodal (image + vidéo + audio + texte) |
 | **Architecture pipeline** | 1 LLM (prompt → classification) | 2 étapes : descripteur multimodal Gemini 3 Flash Preview + 3 classifieurs Qwen 3.5 Flash en parallèle |
 | **Type de tâche** | Classification binaire (4 datasets) | Classification multi-classe (60 formats + 15 catégories + 2 stratégies) |
 | **Données** | Datasets publics labellés (50 dev + 150 test par tâche) | Dataset construit par annotation humaine (1 563 dev + 437 test) |
 | **Métrique** | F1 binaire | Accuracy + F1 macro multi-classe |
-| **Modèle base** | gpt-3.5-turbo (jan 2023) | Gemini 3 Flash Preview + Qwen 3.5 Flash + GPT-5.4 (rewriter) |
+| **Modèle base** | gpt-3.5-turbo (jan 2023) | Gemini 3 Flash Preview + Qwen 3.5 Flash + GPT-5.4 (critic/editor/paraphraser) |
+| **Hyperparamètres** | $m=4, c=8, p=2, b=4, r=6$ | $m=3, c=4, p=1$ par défaut (pragmatique, cost-driven) ; ablation paper $m=4, c=8, p=2$ via `--protegi-paper-defaults` |
 | **Trials** | 3 par tâche | 1 run principal + ablations sur B (1, 10, 30, 50) |
 | **Domaine** | Benchmarks académiques (safety / NLP) | Cas industriel réel (Views, taxonomie métier subjective) |
 | **Implémentation** | Script de recherche | Pipeline production-ready (BDD versionnée, frontend, async, traçabilité) |
 
-### 1.4 Ce que MILPO emprunte à ProTeGi
+### 1.4 Ce que MILPO emprunte ET adapte
 
-- **Le paradigme "gradient textuel"** : utiliser un LLM pour produire une description en langage naturel des défauts du prompt courant à partir d'un batch d'erreurs.
-- **L'architecture mini-batch + édition itérative** : accumuler $B$ erreurs avant de déclencher une réécriture du prompt.
-- **Le mécanisme de sélection avec rollback** : ne pas promouvoir un candidat qui n'améliore pas significativement la performance sur un bloc d'évaluation.
-- **L'évaluation sur tâches de classification** : utiliser l'accuracy comme métrique d'optimisation.
+**Primitives ProTeGi reprises telles quelles** (cf. `milpo/rewriter.py` et `milpo/bandits.py`) :
 
-### 1.5 Ce que MILPO ajoute / adapte
+- **Gradient textuel séparé** : un LLM_∇ (critic) dédié produit $m$ critiques en langage naturel à partir d'un batch d'erreurs, sans jamais éditer le prompt. Le gradient est matérialisé en BDD (`rewrite_gradients`, migration 008) et citable verbatim dans l'analyse qualitative.
+- **Édition à partir du gradient** : un LLM_δ (editor) reçoit le prompt + le gradient + les erreurs et génère $c$ candidats édités dans la direction sémantique opposée des critiques. Température 0.7 pour encourager la diversité entre candidats.
+- **Paraphrase monte-carlo** : un LLM_mc (paraphraser) prend chaque candidat editor et produit $p$ paraphrases sémantiquement équivalentes pour augmenter la diversité du pool. Skippé si $p = 1$.
+- **Best arm identification par Successive Rejects** : sélection parameter-free du meilleur candidat parmi les $c$ (ou $c \cdot p$) bras, sur le même eval window de 30 posts forward. Référence : Audibert & Bubeck 2010.
+- **Mini-batch + édition itérative** : accumuler $B = 30$ erreurs avant de déclencher un step ProTeGi, dans le paradigme prequential (cf. §6).
+- **Rollback sur double évaluation** : ne pas promouvoir le winner Successive Rejects s'il n'améliore pas l'incumbent d'au moins $\Delta \geq 2\%$.
 
-- **Multimodalité** : pipeline en deux étapes (descripteur multimodal + classifieurs text-only) pour économiser le coût des tokens visuels (payés une seule fois par post) et améliorer la traçabilité des features extraites. ProTeGi est text-only.
-- **Multi-classe vs binaire** : extension à 60 classes (formats visuels) avec longue traîne, vs 2 classes équilibrées chez ProTeGi. Cette différence change qualitativement la difficulté du problème (l'ambiguïté entre classes proches devient un enjeu central).
+**Adaptations spécifiques au cas industriel multimodal** :
+
+- **Pipeline en deux étapes** : descripteur multimodal (Gemini 3 Flash Preview) + 3 classifieurs text-only (Qwen 3.5 Flash) en parallèle, pour économiser le coût des tokens visuels (payés une seule fois par post) et améliorer la traçabilité des features extraites. ProTeGi est text-only pur.
+- **Multi-classe vs binaire** : extension à 60 classes (formats visuels) avec longue traîne, vs 2 classes équilibrées chez ProTeGi. L'ambiguïté entre classes proches devient un enjeu central qualitativement absent du papier.
 - **Cas industriel réel** : taxonomie métier subjective construite par un média (Views), vs benchmarks académiques équilibrés.
+- **Beam local par cible** : MILPO a 6 prompts (descripteur×2, category, vf×2, strategy). À chaque trigger, `pick_rewrite_target()` choisit la cible la plus erronée et le step ProTeGi opère sur ce seul prompt. La « profondeur de recherche $r$ » du papier est implicite : c'est le nombre total de triggers sur la passe prequential. Cette adaptation préserve l'invariant « un seul prompt actif par (agent, scope, source) » de MILPO.
+- **Hyperparamètres pragmatiques** : $m = 3, c = 4, p = 1$ par défaut (vs $m = 4, c = 8, p = 2$ pour le paper). Coût d'évaluation multimodal ≈ 4 LLM par post × ~5 bras × 30 posts par trigger, ce qui justifie de réduire le pool initial. Ablation paper-faithful disponible via `--protegi-paper-defaults`.
 - **Pipeline production-ready** : BDD versionnée, frontend d'annotation, GCS V4 Signed URLs, async pipeline, traçabilité des coûts API par run, ablations rejouables sans réannotation. ProTeGi est un script de recherche.
-- **Rewriter unifié** : un seul LLM (GPT-5.4) qui combine les rôles de critic + editor avec un contexte enrichi (descriptions taxonomiques, features extraites par le descripteur, captions des posts en erreur). Plus simple architecturalement que les 3 LLMs séparés de ProTeGi.
 
-### 1.6 Ce que MILPO simplifie (et ce qui pourrait être étendu)
-
-- **Pas de beam search** : MILPO n'évalue qu'un seul candidat à la fois. ProTeGi maintient un beam de 4 prompts en parallèle. Une extension naturelle de MILPO serait d'ajouter un beam search ($b > 1$).
-- **Pas de bandit pour la sélection** : MILPO utilise une promotion simple par seuil ($\Delta \geq 2\%$). ProTeGi utilise UCB / Successive Rejects pour la best arm identification. Une extension naturelle serait d'expérimenter des bandits sur les candidats MILPO.
-- **Un seul run principal** : MILPO n'effectue qu'un seul run d'optimisation (avec ablations sur la taille de batch). ProTeGi moyenne sur 3 trials par tâche. Cette différence est principalement due à la contrainte de coût API et à la durée de la boucle MILPO (multimodal + multi-classe = ~25 minutes par run B0).
+**Limite cost-driven** : MILPO n'effectue qu'**un seul run principal** par configuration d'hyperparamètres, là où ProTeGi moyenne sur 3 trials par tâche. La contrainte est le coût API multimodal (~$21 par run dev complet en hyperparams pragmatiques, ~$50–70 en paper-faithful).
 
 ---
 
@@ -122,8 +124,8 @@ Travaux sur la classification de contenus social media combinant image et texte.
 
 | Dimension | ProTeGi | iPrOp | MILPO |
 |---|---|---|---|
-| **Méthode d'optimisation** | Gradient textuel + beam search + bandit | Sélection humaine entre prompts candidats | Gradient textuel + promotion simple + rollback |
-| **Nombre de LLMs dans la boucle** | 3 (critic + editor + paraphraser) | 1 + humain | 1 (rewriter unifié) |
+| **Méthode d'optimisation** | Gradient textuel + beam search + bandit | Sélection humaine entre prompts candidats | Gradient textuel séparé + édition + paraphrase + Successive Rejects + rollback |
+| **Nombre de LLMs dans la boucle** | 3 (critic + editor + paraphraser) | 1 + humain | 3 (critic + editor + paraphraser) |
 | **Granularité du signal** | Mini-batch d'erreurs | Choix global de prompt | Mini-batch d'erreurs |
 | **Modalité** | Texte | Texte | Multimodal (image + vidéo + audio + texte) |
 | **Type de tâche** | Classification binaire (4 tâches) | Classification binaire | Classification multi-classe (60 formats + 15 catégories + 2 stratégies) |

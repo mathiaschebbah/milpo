@@ -143,7 +143,7 @@ Architecture : DSPy est utilisé **uniquement comme générateur de strings d'in
 | **B_dspy_in_milpo_constrained** | DSPy MIPROv2 | MILPO | ?? | ?? | ?? | ~$2,7 | **Apples-to-apples vs B0** — seule variable : la string d'instructions |
 | B_dspy_native_free | DSPy MIPROv2 (free) | DSPy | ?? | ?? | ?? | ~$1 | Borne native upper |
 | **B_dspy_in_milpo_free** | DSPy MIPROv2 (free) | MILPO | ?? | ?? | ?? | ~$2,7 | Upper bound apples-to-apples (DSPy peut réécrire les descriptions) |
-| B_milpo (Phase 3) | MILPO rewriter | MILPO | ?? | ?? | ?? | ?? | À comparer directement à B_dspy_in_milpo_constrained |
+| **B_milpo** (Phase 3) | MILPO boucle ProTeGi (gradient + edit + paraphrase + Successive Rejects) | MILPO | ?? | ?? | ?? | ?? | Comparaison principale vs B_dspy_in_milpo_constrained — deux méthodes d'optimisation de prompts à infrastructure identique |
 
 #### Lectures attendues du tableau
 
@@ -153,22 +153,35 @@ Architecture : DSPy est utilisé **uniquement comme générateur de strings d'in
 
 3. **B_dspy_native vs B_dspy_in_milpo (à mode constant)** : mesure de la **contribution empirique du runtime à la performance**. Si l'écart est faible, le runtime DSPy et le runtime MILPO produisent des résultats équivalents pour les mêmes instructions. Si l'écart est large, un des deux runtimes est mieux adapté aux particularités de Qwen 3.5 Flash via OpenRouter (potentiellement à cause du tool calling forcé vs parse texte).
 
-4. **B_milpo vs B_dspy_in_milpo_constrained** : la comparaison de fond du mémoire — deux méthodes d'optimisation de prompts (gradient textuel à la ProTeGi vs Bayesian search MIPROv2) confrontées à infrastructure strictement identique sur le même cas industriel.
+4. **B_milpo vs B_dspy_in_milpo_constrained** : la comparaison de fond du mémoire — deux méthodes d'optimisation de prompts (boucle ProTeGi à la Pryzant et al. vs Bayesian search MIPROv2) confrontées à infrastructure strictement identique sur le même cas industriel.
 
 **Statut** : protocole et code en place. Runs en attente — l'extension du dev split annoté (actuellement 237 posts, idéalement 400-500+) conditionne la robustesse statistique des résultats DSPy.
 
-### Contexte du rewriter — format des batches d'erreurs
+### Contexte de la boucle ProTeGi — format des batches d'erreurs
 
-Quand le rewriter se déclenche (30 erreurs accumulées), il reçoit pour chaque erreur :
+Quand la boucle ProTeGi se déclenche (30 erreurs accumulées sur la cible la plus erronée), trois LLMs distincts sont appelés en chaîne (`milpo/rewriter.py`).
+
+**1. LLM_∇ (critic) — diagnostic.** Reçoit les instructions $I_t$ et le batch d'erreurs filtrées pour la cible. Pour chaque erreur :
 
 - Le label **prédit** et le label **attendu** (annotation humaine)
 - Les **features JSON** extraites par le descripteur (texte_overlay, logos, mise_en_page, etc.)
 - Le **résumé visuel** du descripteur
 - La **caption** du post
-- La **description taxonomique** du format prédit ET du format attendu
-- Les **instructions I_t actuelles** du classifieur
+- La **description taxonomique** du label prédit ET du label attendu
 
-Ce format permet au rewriter d'agir comme un ingénieur en debug : il voit le comportement attendu vs observé, les features qui auraient dû déclencher le bon label, et les descriptions taxonomiques qui couvrent le cas. Il peut identifier quelles règles dans I_t sont responsables de l'erreur.
+Le critic produit exactement $m$ critiques distinctes en langage naturel — le **« gradient textuel »** au sens de Pryzant et al. — sans jamais réécrire $I_t$. Le prompt système le contraint explicitement à ne pas suggérer d'édition. Le gradient est matérialisé en BDD (`rewrite_gradients`, migration 008) avec son texte intégral, le nombre de critiques, le modèle utilisé et les coûts.
+
+**2. LLM_δ (editor) — édition à partir du gradient.** Reçoit $I_t$, le gradient textuel, les erreurs et les descriptions taxonomiques (fixes). Produit $c$ candidats édités dans la direction sémantique opposée du gradient. Chaque candidat doit corriger au moins un défaut listé et être substantiellement différent des autres (vraie diversité, pas paraphrase). Température 0.7 pour favoriser cette diversité entre candidats.
+
+**3. LLM_mc (paraphraser) — diversification monte-carlo.** Skippé si $p = 1$ (défaut pragmatique). Sinon prend chaque candidat de l'editor et produit $p$ paraphrases sémantiquement équivalentes (synonymes, réorganisation syntaxique, sans ajouter ni retirer de règle). Total de candidats évalués : $c \cdot p$.
+
+**Évaluation et sélection.** Les $c$ (ou $c \cdot p$) candidats sont insérés en `prompt_versions` avec `status='draft'` et `parent_id` pointant vers l'incumbent (lineage), puis évalués en parallèle (un thread par bras) sur les 30 prochains posts dev avec leur ground truth. La fonction `multi_evaluate` gère le scope-mismatch (post FEED vs cible REELS) en propageant les matches incumbent à tous les bras concernés. Les accuracies par bras sont persistées dans `rewrite_beam_candidates.eval_accuracy`.
+
+**Best arm identification.** La sélection finale utilise **Successive Rejects** (Audibert & Bubeck 2010, COLT), un bandit *parameter-free* recommandé par ProTeGi pour la *best arm identification*. L'implémentation post-hoc (`milpo/bandits.py`) procède en $K - 1$ phases : à chaque phase elle élimine le bras de plus faible accuracy parmi ceux qui restent, et trace le numéro de phase d'élimination dans `rewrite_beam_candidates.sr_phase`. Le winner final a `is_winner=TRUE` et `sr_phase IS NULL`.
+
+**Promotion ou rollback.** Le winner Successive Rejects est promu si son accuracy dépasse l'incumbent de $\Delta \geq 2\%$, sinon rollback. Une row dans `rewrite_logs` est créée dans tous les cas avec `accepted = True/False` et la référence au gradient. La patience est de 3 rollbacks consécutifs avant arrêt des rewrites.
+
+Ce découpage en 3 LLMs distincts est la **différence centrale avec le rewriter unifié** d'une approche naïve : le gradient est matérialisé comme objet indépendant, citable et auditable, et la sélection des candidats utilise un bandit honnête plutôt qu'un argmax sur un seul candidat.
 
 ## Tiers de priorité
 
