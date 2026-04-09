@@ -2,40 +2,17 @@
 
 > Version **3.3** — 2026-04-09
 
-## Double dimension du projet
-
-1. **Recherche MILPO** : peut-on adapter une méthode d'optimisation de prompt par gradient textuel (style ProTeGi, Pryzant et al. 2023) à un cas industriel multimodal de classification (60 formats visuels + 15 catégories + 2 stratégies sur les posts Instagram du média Views), avec un volume d'annotations limité (~9,5% du dataset) ?
-2. **Collaboration Agent-Humain** : le projet lui-même est construit via une collaboration structurée entre Claude Code et l'humain. La note `docs/note_intelligence_artificielle.md` porte la lecture réflexive de cette collaboration (écueils observés, « Claude's psychosis », filiation ProTeGi découverte tardivement).
+Le projet vise à créer une pipeline de classification multimodale servant à classifier les posts du média Views (@viewsfrance sur Instagram).
 
 ## Index
 
-> **docs/ volontairement minimal.** Depuis v3.3, la source de vérité est le code + la BDD, pas des résumés narratifs. Les docs techniques qui dérivaient (architecture, stack, schema, data, phases, planning, conventions, agent_perspective, prompts_v0) ont été supprimées — elles étaient reconstructibles à la volée et pourrissaient entre deux sessions. Pour initialiser le contexte d'une session, utiliser le skill `/setup` (lecture active du code et de la BDD).
-
 - [Note sur l'IA](docs/note_intelligence_artificielle.md) — lecture réflexive sur l'usage des agents de code dans ce projet
 - [Projet](docs/project.md) — hypothèses falsifiables, positionnement, claim visé (matière mémoire brute)
-- [Etat de l'art](docs/related_work.md) — ProTeGi, DSPy, iPrOp, positionnement MILPO (matière mémoire brute)
-- [Evaluation](docs/evaluation.md) — protocole, métriques, résultats B0 chiffrés (matière mémoire brute)
+- [État de l'art](docs/related_work.md) — ProTeGi, DSPy, iPrOp, positionnement MILPO (matière mémoire brute)
+- [Évaluation](docs/evaluation.md) — protocole, métriques, résultats B0 chiffrés (matière mémoire brute)
 - [Reproduire](REPRODUCE.md) — guide de reproduction des résultats
 - [DSPy baseline code](related_work/dspy_baseline/README.md) — implémentation du baseline DSPy MIPROv2 comparé à MILPO
 
-## Monorepo
-
-```
-milpo/                 ← repo root
-├── milpo/             ← package Python (engine MILPO)
-├── apps/
-│   ├── frontend/      ← React (interface de swipe)
-│   └── backend/       ← FastAPI (API)
-├── scripts/           ← Import CSV, simulations, figures
-├── docs/              ← Documentation versionnée
-├── data/              ← Données brutes (gitignored)
-├── CLAUDE.md          ← Index versionné
-└── README.md
-```
-
-## Repo
-
-- **GitHub** : [mathiaschebbah/milpo](https://github.com/mathiaschebbah/milpo) (open-source — repo à renommer côté GitHub Settings, redirect automatique depuis l'ancien `hilpo`)
 - **Auteur** : Mathias Chebbah, M1 MIAGE, Université Paris Dauphine
 
 ## Changelog
