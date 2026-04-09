@@ -16,7 +16,7 @@
 - [Etat de l'art](docs/related_work.md) — ProTeGi, DSPy, iPrOp, positionnement MILPO (matière mémoire brute)
 - [Evaluation](docs/evaluation.md) — protocole, métriques, résultats B0 chiffrés (matière mémoire brute)
 - [Reproduire](REPRODUCE.md) — guide de reproduction des résultats
-- [Related work code](related_work/README.md) — implémentations de baselines (DSPy MIPROv2, etc.) comparées à MILPO
+- [DSPy baseline code](related_work/dspy_baseline/README.md) — implémentation du baseline DSPy MIPROv2 comparé à MILPO
 
 ## Monorepo
 
