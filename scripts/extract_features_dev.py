@@ -38,6 +38,7 @@ from milpo.db import (
     get_active_prompt,
     get_conn,
     load_categories,
+    load_posts_media,
     load_post_media,
     load_strategies,
     load_visual_formats,
@@ -280,7 +281,13 @@ async def main():
 
     # 3. Signature URLs GCS
     log.info("Signature des URLs GCS...")
-    signed_by_post = sign_all_posts_media(posts, load_post_media, conn, max_workers=20)
+    signed_by_post = sign_all_posts_media(
+        posts,
+        load_post_media,
+        conn,
+        max_workers=20,
+        load_all_media_fn=load_posts_media,
+    )
 
     # 4. Chargement des prompts descripteur v0
     descriptor_prompts = load_descriptor_prompts(conn)

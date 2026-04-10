@@ -53,6 +53,7 @@ from milpo.db import (
     load_categories,
     load_dev_annotations,
     load_dev_posts,
+    load_posts_media,
     load_post_media,
     load_strategies,
     load_visual_formats,
@@ -1299,13 +1300,31 @@ from milpo.tui import SimulationDisplay
 # ── WebSocket télémétrie ─────────────────────────────────────
 
 _ws = None
+_init_t0 = 0.0
+_init_stage = ""
+_init_stage_t0 = 0.0
 
 
 def init_telemetry():
-    """Connecte au WS server de la TUI TypeScript."""
+    """Connecte au WS server de la TUI TypeScript avec retry."""
     global _ws
-    port = os.environ.get("MILPO_WS_PORT", "9999")
-    _ws = ws_connect(f"ws://localhost:{port}")
+    host = os.environ.get("MILPO_WS_HOST", "127.0.0.1")
+    port = os.environ.get("MILPO_WS_PORT")
+    if port is None:
+        # Pas de TUI — mode standalone, pas de télémétrie
+        return
+    for attempt in range(5):
+        try:
+            _ws = ws_connect(f"ws://{host}:{port}")
+            return
+        except (ConnectionRefusedError, OSError):
+            if attempt < 4:
+                time.sleep(0.5)
+    log.warning(
+        "Impossible de se connecter au WS server TUI sur %s:%s — télémétrie désactivée",
+        host,
+        port,
+    )
 
 
 def emit_telemetry(display: SimulationDisplay):
@@ -1313,6 +1332,52 @@ def emit_telemetry(display: SimulationDisplay):
     if _ws is not None:
         try:
             _ws.send(json.dumps(display.to_json()))
+        except Exception:
+            pass
+
+
+def _reset_init_telemetry():
+    global _init_t0, _init_stage, _init_stage_t0
+    _init_t0 = time.monotonic()
+    _init_stage = ""
+    _init_stage_t0 = _init_t0
+
+
+def _emit_init_status(
+    phase: str,
+    *,
+    stage: str | None = None,
+    done: int | None = None,
+    total: int | None = None,
+    unit: str | None = None,
+):
+    """Envoie un message d'initialisation léger à la TUI (avant que le display existe)."""
+    global _init_stage, _init_stage_t0
+    if _ws is not None:
+        try:
+            now = time.monotonic()
+            if stage is not None and stage != _init_stage:
+                _init_stage = stage
+                _init_stage_t0 = now
+
+            payload: dict[str, object] = {"init": True, "phase": phase}
+            if stage is not None:
+                payload["stage"] = stage
+            if done is not None:
+                payload["done"] = done
+            if total is not None:
+                payload["total"] = total
+            if unit is not None:
+                payload["unit"] = unit
+            payload["elapsedSec"] = round(now - _init_t0, 1)
+            payload["stageElapsedSec"] = round(now - _init_stage_t0, 1)
+            if done is not None and total is not None and done > 0:
+                elapsed = max(now - _init_stage_t0, 1e-6)
+                rate = done / elapsed
+                payload["rate"] = round(rate, 2)
+                if total >= done and rate > 0:
+                    payload["etaSec"] = round((total - done) / rate, 1)
+            _ws.send(json.dumps(payload))
         except Exception:
             pass
 
@@ -1373,14 +1438,18 @@ async def main():
 
     # Connecter la télémétrie WS
     init_telemetry()
+    _reset_init_telemetry()
 
     # Silence TOUT le logging pendant l'exécution (la TUI remplace les logs)
     import warnings
     warnings.filterwarnings("ignore")
     logging.getLogger().setLevel(logging.ERROR)
 
+    # Envoyer un signal "init" immédiat à la TUI pour éviter le "waiting" prolongé
+    _emit_init_status("loading posts & annotations...", stage="bootstrap")
+
     try:
-        # ── 1-5. Setup silencieux ──
+        # ── 1-5. Setup ──
         raw_posts = load_dev_posts(conn, limit=args.limit)
         annotations = load_dev_annotations(conn)
         annotated_ids = set(annotations.keys())
@@ -1410,7 +1479,47 @@ async def main():
         }
         run_id = create_run(conn, run_config)
 
-        signed_by_post = sign_all_posts_media(raw_posts, load_post_media, conn, max_workers=20)
+        def _on_sign_progress(phase: str, done: int, total: int):
+            if phase == "loading_media":
+                _emit_init_status(
+                    f"loading media from DB ({done}/{total} posts)...",
+                    stage="loading_media",
+                    done=done,
+                    total=total,
+                    unit="posts",
+                )
+            elif phase == "collecting_urls":
+                _emit_init_status(
+                    f"collected {done} unique media URLs...",
+                    stage="collecting_urls",
+                    done=done,
+                    total=total,
+                    unit="urls",
+                )
+            else:
+                _emit_init_status(
+                    f"signing GCS URLs ({done}/{total})...",
+                    stage="signing",
+                    done=done,
+                    total=total,
+                    unit="urls",
+                )
+
+        _emit_init_status(
+            f"loading media from DB (0/{len(raw_posts)} posts)...",
+            stage="loading_media",
+            done=0,
+            total=len(raw_posts),
+            unit="posts",
+        )
+        signed_by_post = sign_all_posts_media(
+            raw_posts,
+            load_post_media,
+            conn,
+            max_workers=20,
+            load_all_media_fn=load_posts_media,
+            on_progress=_on_sign_progress,
+        )
 
         post_inputs: list[PostInput] = []
         for post in raw_posts:
@@ -1448,6 +1557,20 @@ async def main():
             f"Config B={args.batch_size} delta={args.delta*100:.0f}% "
             f"patience={args.patience} m={args.protegi_m} c={args.protegi_c} p={args.protegi_p}"
         )
+        display.heartbeat("ready to classify")
+        display.sync(
+            cursor,
+            n_processed,
+            matches_by_axis,
+            len(error_buffer),
+            live_cost_estimate_usd,
+            prompt_state.versions,
+        )
+        display.total_input_tokens = total_input_tokens
+        display.total_output_tokens = total_output_tokens
+        display.matches_by_scope = matches_by_scope
+        display.n_by_scope = n_by_scope
+        emit_telemetry(display)
 
         BATCH_TIMEOUT = 120  # secondes max par micro-batch avant skip
 

@@ -22,6 +22,7 @@ from milpo.db import (
     format_descriptions,
     get_active_prompt,
     get_conn,
+    load_posts_media,
     load_post_media,
     load_visual_formats,
 )
@@ -347,7 +348,13 @@ def main() -> None:
     log.info("simulation_run id=%d", run_id)
 
     log.info("Signature des URLs GCS...")
-    signed_by_post = sign_all_posts_media(raw_posts, load_post_media, conn, max_workers=20)
+    signed_by_post = sign_all_posts_media(
+        raw_posts,
+        load_post_media,
+        conn,
+        max_workers=20,
+        load_all_media_fn=load_posts_media,
+    )
 
     desc_feed = get_active_prompt(conn, "descriptor", "FEED")
     desc_reels = get_active_prompt(conn, "descriptor", "REELS")

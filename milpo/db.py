@@ -95,6 +95,34 @@ def load_post_media(conn: psycopg.Connection, ig_media_id: int) -> list[dict]:
     ).fetchall()
 
 
+def load_posts_media(conn: psycopg.Connection, ig_media_ids: list[int]) -> dict[int, list[dict]]:
+    """Charge en une requête les médias de plusieurs posts, ordonnés par post puis média."""
+    if not ig_media_ids:
+        return {}
+
+    ordered_ids = list(dict.fromkeys(ig_media_ids))
+    rows = conn.execute(
+        """
+        SELECT
+            parent_ig_media_id,
+            ig_media_id,
+            media_type::text AS media_type,
+            media_url,
+            thumbnail_url,
+            media_order
+        FROM post_media
+        WHERE parent_ig_media_id = ANY(%s)
+        ORDER BY parent_ig_media_id, media_order
+        """,
+        (ordered_ids,),
+    ).fetchall()
+
+    by_post: dict[int, list[dict]] = {mid: [] for mid in ordered_ids}
+    for row in rows:
+        by_post[row["parent_ig_media_id"]].append(row)
+    return by_post
+
+
 # ── Prompt versions ────────────────────────────────────────────
 
 

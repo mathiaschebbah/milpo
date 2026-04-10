@@ -27,6 +27,7 @@ from milpo.db import (
     get_active_prompt,
     get_prompt_version,
     load_categories,
+    load_posts_media,
     load_post_media,
     load_strategies,
     load_visual_formats,
@@ -312,7 +313,13 @@ async def main():
 
     # 3. Signature URLs GCS (parallèle, 20 threads)
     log.info("Signature des URLs GCS...")
-    signed_by_post = sign_all_posts_media(raw_posts, load_post_media, conn, max_workers=20)
+    signed_by_post = sign_all_posts_media(
+        raw_posts,
+        load_post_media,
+        conn,
+        max_workers=20,
+        load_all_media_fn=load_posts_media,
+    )
 
     post_inputs: list[PostInput] = []
     skipped = 0

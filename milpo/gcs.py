@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import timedelta
 from typing import Any, cast
 from urllib.parse import urlparse
@@ -111,6 +111,12 @@ def _prepare_media_entries(media: list[dict]) -> list[tuple[str, str]] | None:
     return entries
 
 
+def _progress_step(total: int, target_updates: int = 20) -> int:
+    if total <= 0:
+        return 1
+    return max(1, total // target_updates)
+
+
 def sign_media_urls(media: list[dict]) -> list[tuple[str, str]]:
     """Signe les URLs de médias. Retourne [(signed_url, media_type)]."""
     prepared = _prepare_media_entries(media)
@@ -130,17 +136,39 @@ def sign_all_posts_media(
     load_post_media_fn,
     conn,
     max_workers: int = 20,
+    load_all_media_fn: Any | None = None,
+    on_progress: Any | None = None,
 ) -> dict[int, list[tuple[str, str]]]:
     """Signe les URLs de tous les posts en parallèle (threads).
+
+    Args:
+        load_all_media_fn: callback(conn, ig_media_ids) -> {post_id: [media...]}.
+            Permet d'éviter le N+1 SQL quand disponible.
+        on_progress: callback(phase, done, total) appelé pour suivre l'avancement.
 
     Returns:
         {ig_media_id: [(signed_url, media_type), ...]}.
     """
     # 1. Charger tous les médias
-    all_media: dict[int, list[dict]] = {}
-    for post in posts:
-        mid = post["ig_media_id"]
-        all_media[mid] = load_post_media_fn(conn, mid)
+    n_posts = len(posts)
+    all_media: dict[int, list[dict]]
+    if on_progress:
+        on_progress("loading_media", 0, n_posts)
+
+    if load_all_media_fn is not None:
+        post_ids = [post["ig_media_id"] for post in posts]
+        loaded = load_all_media_fn(conn, post_ids)
+        all_media = {mid: loaded.get(mid, []) for mid in post_ids}
+        if on_progress:
+            on_progress("loading_media", n_posts, n_posts)
+    else:
+        all_media = {}
+        progress_step = _progress_step(n_posts)
+        for i, post in enumerate(posts):
+            mid = post["ig_media_id"]
+            all_media[mid] = load_post_media_fn(conn, mid)
+            if on_progress and ((i + 1) % progress_step == 0 or i + 1 == n_posts):
+                on_progress("loading_media", i + 1, n_posts)
 
     # 2. Collecter toutes les URLs uniques à signer
     url_to_sign: dict[str, None] = {}  # ordered set
@@ -159,22 +187,49 @@ def sign_all_posts_media(
             media_index.append((mid, raw_url, media_type))
 
     unique_urls = list(url_to_sign.keys())
-    logger.info("Signature de %d URLs uniques (%d threads)...", len(unique_urls), max_workers)
+    n_urls = len(unique_urls)
+    n_gcs_urls = sum(1 for url in unique_urls if is_gcs_url(url))
+    logger.info(
+        "Signature de %d URLs uniques dont %d GCS (%d threads)...",
+        n_urls,
+        n_gcs_urls,
+        max_workers,
+    )
+    if on_progress:
+        on_progress("collecting_urls", n_urls, n_urls)
+        on_progress("signing", 0, n_gcs_urls)
 
     # 3. Signer en parallèle
     # Init credentials avant le pool (pas thread-safe)
-    _ensure_credentials()
-    _get_storage_client()
-
-    signed_map: dict[str, str] = {}
+    signed_map: dict[str, str] = {url: url for url in unique_urls if not is_gcs_url(url)}
+    signed_count = 0
+    sign_targets = [url for url in unique_urls if is_gcs_url(url)]
+    progress_step = _progress_step(len(sign_targets))
 
     def _sign_one(url: str) -> tuple[str, str | None]:
-        return url, sign_url(url)
+        try:
+            return url, sign_url(url)
+        except Exception:
+            logger.exception("Echec signature URL GCS: %s", url)
+            return url, None
 
-    with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        for original, signed in pool.map(lambda u: _sign_one(u), unique_urls):
-            if signed:
-                signed_map[original] = signed
+    if sign_targets:
+        _ensure_credentials()
+        _get_storage_client()
+
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            futures = [pool.submit(_sign_one, url) for url in sign_targets]
+            for future in as_completed(futures):
+                original, signed = future.result()
+                if signed:
+                    signed_map[original] = signed
+                signed_count += 1
+                if on_progress and (
+                    signed_count % progress_step == 0 or signed_count == len(sign_targets)
+                ):
+                    on_progress("signing", signed_count, len(sign_targets))
+    elif on_progress:
+        on_progress("signing", 0, 0)
 
     # 4. Assembler les résultats par post
     result: dict[int, list[tuple[str, str]]] = {}
