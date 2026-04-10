@@ -136,6 +136,10 @@ class SimulationDisplay:
             f"{_fmt_tok(self.total_output_tokens)} out"
         )
         lines.append("\u2500" * 52)
+        loss_cat = 100 - acc_cat
+        loss_vf = 100 - acc_vf
+        loss_str = 100 - acc_str
+        lines.append(f" Loss       cat={loss_cat:.1f}%  vf={loss_vf:.1f}%  str={loss_str:.1f}%")
         lines.append(f" Accuracy   cat={acc_cat:.1f}%  vf={acc_vf:.1f}%  str={acc_str:.1f}%")
         if self.rolling_acc:
             r = self.rolling_acc
@@ -239,6 +243,11 @@ class SimulationDisplay:
                 "category": round(self.matches_by_axis["category"] / n * 100, 1),
                 "visualFormat": round(self.matches_by_axis["visual_format"] / n * 100, 1),
                 "strategy": round(self.matches_by_axis["strategy"] / n * 100, 1),
+            },
+            "loss": {
+                "category": round(100 - self.matches_by_axis["category"] / n * 100, 1),
+                "visualFormat": round(100 - self.matches_by_axis["visual_format"] / n * 100, 1),
+                "strategy": round(100 - self.matches_by_axis["strategy"] / n * 100, 1),
             },
             "rolling50": self.rolling_acc if self.rolling_acc else None,
             "byScope": {

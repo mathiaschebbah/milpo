@@ -446,9 +446,7 @@ async def run_protegi_rewrite(
         is_winner=True,
     )
 
-    promoted = winner_acc >= inc_acc + args.delta
-    if args.no_rollback:
-        promoted = winner_acc > inc_acc
+    promoted = winner_acc > inc_acc + args.delta
 
     store_rewrite_log(
         conn,

@@ -58,9 +58,10 @@ def build_parser() -> argparse.ArgumentParser:
         description="Simulation MILPO prequential — boucle ProTeGi (Pryzant et al. 2023)",
     )
     parser.add_argument("-B", "--batch-size", type=int, default=30)
-    parser.add_argument("--delta", type=float, default=0.02)
+    parser.add_argument("--delta", type=float, default=0.0)
     parser.add_argument("--patience", type=int, default=3)
     parser.add_argument("--eval-window", type=int, default=60)
+    parser.add_argument("--split", choices=["dev", "test"], default="dev", help="Split à utiliser (défaut dev)")
     parser.add_argument("--dry-run", action="store_true", help="Pas de rewrite (B0-on-dev)")
     parser.add_argument("--no-rollback", action="store_true", help="Ablation A5")
     parser.add_argument("--limit", type=int, default=None, help="Nombre de posts max")
@@ -96,6 +97,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Convenience : applique m=4 c=8 p=2 (hyperparams paper Pryzant et al.)",
     )
+    parser.add_argument(
+        "--sgd",
+        action="store_true",
+        help="Mode SGD : évalue les candidats sur le batch d'erreurs (pas d'eval window séparée)",
+    )
     return parser
 
 
@@ -103,6 +109,9 @@ async def run_simulation(args) -> int:
     if args.protegi_paper_defaults:
         args.protegi_m, args.protegi_c, args.protegi_p = 4, 8, 2
         log.info("[PROTEGI] paper defaults appliqués : m=4 c=8 p=2")
+    if args.sgd and args.batch_size == 30:
+        args.batch_size = 10
+        log.info("[SGD] batch_size réduit à 10 (mode SGD)")
 
     conn = get_conn()
     run_id: int | None = None
@@ -133,23 +142,24 @@ async def run_simulation(args) -> int:
     emit_init_status("loading posts & annotations...", stage="bootstrap")
 
     try:
-        raw_posts = load_dev_posts(conn, limit=args.limit)
-        annotations = load_dev_annotations(conn)
+        raw_posts = load_dev_posts(conn, limit=args.limit, split=args.split)
+        annotations = load_dev_annotations(conn, split=args.split)
         annotated_ids = set(annotations.keys())
         raw_posts = [post for post in raw_posts if post["ig_media_id"] in annotated_ids]
         if not raw_posts:
-            console.print("[red]Aucun post annoté dans le split dev.[/red]")
+            console.print(f"[red]Aucun post annoté dans le split {args.split}.[/red]")
             sys.exit(1)
 
         run_config = {
             "name": f"MILPO_protegi_B{args.batch_size}" + ("_dryrun" if args.dry_run else ""),
-            "split": "dev",
+            "split": args.split,
             "batch_size": args.batch_size,
             "delta": args.delta,
             "patience": args.patience,
             "eval_window": args.eval_window,
             "dry_run": args.dry_run,
             "no_rollback": args.no_rollback,
+            "sgd": args.sgd,
             "protegi": {
                 "m": args.protegi_m,
                 "c": args.protegi_c,
@@ -215,6 +225,8 @@ async def run_simulation(args) -> int:
                 media_types=[media_type for _, media_type in signed],
                 caption=post["caption"],
             ))
+
+        post_by_id = {p.ig_media_id: p for p in post_inputs}
 
         prompt_state = load_prompt_state_from_db(conn, logger=log)
         labels_by_scope = {scope: build_labels(conn, scope) for scope in ("FEED", "REELS")}
@@ -367,12 +379,17 @@ async def run_simulation(args) -> int:
                         emit_telemetry(display)
                         continue
 
-                    ew = 20 if target_agent == "descriptor" else args.eval_window
-                    eval_end = min(cursor + ew, total)
-                    eval_posts = post_inputs[cursor:eval_end]
-                    if len(eval_posts) < 5:
+                    if args.sgd:
+                        # Mode SGD : évaluer sur les posts du batch d'erreurs
+                        error_ids = list(dict.fromkeys(e.ig_media_id for e in target_errors))
+                        eval_posts = [post_by_id[pid] for pid in error_ids if pid in post_by_id]
+                    else:
+                        ew = 20 if target_agent == "descriptor" else args.eval_window
+                        eval_end = min(cursor + ew, total)
+                        eval_posts = post_inputs[cursor:eval_end]
+                    if len(eval_posts) < 3:
                         skipped_rewrite_count += 1
-                        display.add_event(f"Rewrite skipped (only {len(eval_posts)} posts left for eval)")
+                        display.add_event(f"Rewrite skipped (only {len(eval_posts)} posts for eval)")
                         error_buffer.clear()
                         live.update(display.build())
                         emit_telemetry(display)
@@ -468,26 +485,31 @@ async def run_simulation(args) -> int:
                                 f"({outcome.incumbent_acc*100:.1f}% vs {outcome.candidate_acc*100:.1f}%, {delta:+.1f}%)"
                             )
 
-                        for match_record in outcome.incumbent_records:
-                            all_matches.append(match_record)
-                            if match_record.match:
-                                matches_by_axis[match_record.axis] += 1
-
-                        rewrite_scope_posts: dict[str, int] = {}
-                        for match_record in outcome.incumbent_records:
-                            if match_record.scope:
+                        if not args.sgd:
+                            # Mode classique : les eval_posts sont des posts futurs,
+                            # on les compte dans les métriques globales et on avance le cursor
+                            for match_record in outcome.incumbent_records:
+                                all_matches.append(match_record)
                                 if match_record.match:
-                                    matches_by_scope[match_record.scope][match_record.axis] += 1
-                                rewrite_scope_posts[match_record.scope] = rewrite_scope_posts.get(match_record.scope, 0) + 1
-                        for scope, count in rewrite_scope_posts.items():
-                            n_by_scope[scope] += count // 3
+                                    matches_by_axis[match_record.axis] += 1
 
-                        n_processed += outcome.eval_window_consumed
+                            rewrite_scope_posts: dict[str, int] = {}
+                            for match_record in outcome.incumbent_records:
+                                if match_record.scope:
+                                    if match_record.match:
+                                        matches_by_scope[match_record.scope][match_record.axis] += 1
+                                    rewrite_scope_posts[match_record.scope] = rewrite_scope_posts.get(match_record.scope, 0) + 1
+                            for scope, count in rewrite_scope_posts.items():
+                                n_by_scope[scope] += count // 3
+
+                            n_processed += outcome.eval_window_consumed
+                            cursor += outcome.eval_window_consumed
+
+                        # SGD mode : pas d'avance du cursor, posts déjà comptés
                         n_arms = 1 + (
                             args.protegi_c if args.protegi_p < 2 else args.protegi_c * args.protegi_p
                         )
                         total_api_calls += outcome.eval_window_consumed * 4 * n_arms
-                        cursor += outcome.eval_window_consumed
                         error_buffer.clear()
 
                     args.protegi_c = saved_c
@@ -539,7 +561,7 @@ async def run_simulation(args) -> int:
             skipped_rewrite_count,
         )
         log.info("")
-        log.info("  Accuracy (tout le dev scoré) :")
+        log.info("  Accuracy (tout le %s scoré) :", args.split)
         log.info("    Catégorie      : %.1f%% (%d/%d)", metrics["accuracy_category"] * 100, matches_by_axis["category"], n_processed)
         log.info("    Visual_format  : %.1f%% (%d/%d)", metrics["accuracy_visual_format"] * 100, matches_by_axis["visual_format"], n_processed)
         log.info("    Stratégie      : %.1f%% (%d/%d)", metrics["accuracy_strategy"] * 100, matches_by_axis["strategy"], n_processed)

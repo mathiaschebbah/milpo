@@ -9,8 +9,9 @@ def load_dev_posts(
     conn: psycopg.Connection,
     limit: int | None = None,
     offset: int = 0,
+    split: str = "dev",
 ) -> list[dict]:
-    """Charge les posts dev non encore prédits, dans l'ordre de présentation."""
+    """Charge les posts d'un split dans l'ordre de présentation."""
     query = """
         SELECT
             p.ig_media_id,
@@ -20,13 +21,13 @@ def load_dev_posts(
             sp.presentation_order
         FROM sample_posts sp
         JOIN posts p ON p.ig_media_id = sp.ig_media_id
-        WHERE sp.split = 'dev'
+        WHERE sp.split = %s
         ORDER BY sp.presentation_order
     """
-    params: list = []
+    params: list = [split]
     if limit:
         query += " LIMIT %s OFFSET %s"
-        params = [limit, offset]
+        params.extend([limit, offset])
     return conn.execute(query, params).fetchall()
 
 
@@ -76,8 +77,8 @@ def load_posts_media(conn: psycopg.Connection, ig_media_ids: list[int]) -> dict[
     return by_post
 
 
-def load_dev_annotations(conn: psycopg.Connection) -> dict[int, dict]:
-    """Charge les annotations dev. Retourne {ig_media_id: {category, visual_format, strategy}}."""
+def load_dev_annotations(conn: psycopg.Connection, split: str = "dev") -> dict[int, dict]:
+    """Charge les annotations d'un split. Retourne {ig_media_id: {category, visual_format, strategy}}."""
     rows = conn.execute(
         """
         SELECT a.ig_media_id,
@@ -88,9 +89,10 @@ def load_dev_annotations(conn: psycopg.Connection) -> dict[int, dict]:
         JOIN categories c ON c.id = a.category_id
         JOIN visual_formats vf ON vf.id = a.visual_format_id
         JOIN sample_posts sp ON sp.ig_media_id = a.ig_media_id
-        WHERE sp.split = 'dev'
+        WHERE sp.split = %s
         ORDER BY sp.presentation_order
-        """
+        """,
+        (split,),
     ).fetchall()
     return {
         row["ig_media_id"]: {
