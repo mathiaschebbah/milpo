@@ -115,6 +115,22 @@ Ces patterns d'erreur sont des **limitations des prompts classifieurs v0** — c
 - **Confusion dominante** : `post_news → post_mood` (22 erreurs) — c'est la **cible prioritaire pour la boucle MILPO**.
 - **Formats rares invisibles** : `post_en_savoir_plus`, `post_en_savoir_plus_selection`, `post_frise` restent à 0% — absorbés par les formats dominants.
 
+### Distribution temporelle des erreurs (visual_format)
+
+| Année | Posts test | Accuracy vf | Erreurs |
+|-------|-----------|-------------|---------|
+| 2018 | 28 | 78.6% | 6 |
+| 2019 | 13 | **38.5%** | 8 |
+| 2020 | 24 | **58.3%** | 10 |
+| 2021 | 49 | 71.4% | 14 |
+| 2022 | 59 | 76.3% | 14 |
+| 2023 | 77 | 76.6% | 18 |
+| 2024 | 64 | **85.9%** | 9 |
+| 2025 | 86 | 72.1% | 24 |
+| 2026 | 37 | 70.3% | 11 |
+
+**Observation** : la taxonomie, construite à partir des formats récents de Views (2024-2025), classifie nettement mieux les posts récents (2024 : 85.9%) que les posts anciens (2019 : 38.5%). Les anciens posts utilisaient des formats moins standardisés qui ne correspondent pas toujours aux gabarits actuels. Ce biais temporel est une limite structurelle de l'approche : la taxonomie capture l'identité visuelle *actuelle* de Views, pas son historique complet.
+
 ### Coût détaillé
 
 | Agent | Modèle | Appels | Tokens in | Tokens out | Latence moy. |
