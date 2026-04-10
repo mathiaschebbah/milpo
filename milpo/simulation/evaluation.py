@@ -188,8 +188,12 @@ async def async_multi_evaluate(
         return post.ig_media_id, features, desc_log
 
     all_posts = [post for _, post, _ in mismatch_posts + normal_posts]
+
+    async def _describe_with_timeout(post: PostInput):
+        return await asyncio.wait_for(_describe_post(post), timeout=120)
+
     desc_results = await asyncio.gather(
-        *[_describe_post(post) for post in all_posts],
+        *[_describe_with_timeout(post) for post in all_posts],
         return_exceptions=True,
     )
 
@@ -284,7 +288,11 @@ async def async_multi_evaluate(
 
     async def _track(coro):
         nonlocal eval_done
-        result = await coro
+        try:
+            result = await asyncio.wait_for(coro, timeout=120)
+        except asyncio.TimeoutError:
+            log.warning("Classification timeout (120s) dans multi_evaluate")
+            result = None
         eval_done += 1
         if on_progress:
             on_progress(eval_done, eval_total)
