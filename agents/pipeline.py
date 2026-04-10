@@ -132,14 +132,24 @@ def _run_agent_phase(
     for round_idx in range(MAX_TOOL_ROUNDS):
         t0 = time.monotonic()
 
-        response = client.beta.messages.create(
-            model=MODEL_EXECUTOR,
-            max_tokens=MAX_TOKENS_PER_TURN,
-            system=system,
-            tools=tools,
-            messages=messages,
-            betas=["advisor-tool-2026-03-01"],
-        )
+        # Retry avec backoff exponentiel sur les 429 (rate limit)
+        for attempt in range(5):
+            try:
+                response = client.beta.messages.create(
+                    model=MODEL_EXECUTOR,
+                    max_tokens=MAX_TOKENS_PER_TURN,
+                    system=system,
+                    tools=tools,
+                    messages=messages,
+                    betas=["advisor-tool-2026-03-01"],
+                )
+                break
+            except anthropic.RateLimitError:
+                wait = 2 ** attempt * 15  # 15s, 30s, 60s, 120s, 240s
+                log.debug("  rate limit, retry in %ds (attempt %d/5)", wait, attempt + 1)
+                time.sleep(wait)
+        else:
+            raise anthropic.RateLimitError("rate limit épuisé après 5 retries")
 
         latency_ms = int((time.monotonic() - t0) * 1000)
 

@@ -198,7 +198,7 @@ def store_agent_results(
 def main():
     parser = argparse.ArgumentParser(description="Évalue la pipeline agentique A0 sur le split test")
     parser.add_argument("--limit", type=int, default=None, help="Limiter à N posts (pour tests)")
-    parser.add_argument("--workers", type=int, default=10, help="Nombre de posts classifiés en parallèle (défaut: 10)")
+    parser.add_argument("--workers", type=int, default=3, help="Nombre de posts classifiés en parallèle (défaut: 3, rate limit Haiku 50K tok/min)")
     parser.add_argument("--dry-run", action="store_true", help="Afficher les posts sans classifier")
     args = parser.parse_args()
 
