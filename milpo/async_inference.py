@@ -144,7 +144,7 @@ async def async_call_classifier(
                     tools=[tool],
                     tool_choice="auto",
                     temperature=0.1,
-                    reasoning_effort="low",
+                    reasoning_effort="medium",
                 )
             except Exception as exc:
                 log.warning("Classifier %s échoué (attempt %d): %s", axis, attempt + 1, exc)
