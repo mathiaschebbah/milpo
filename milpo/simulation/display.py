@@ -22,10 +22,11 @@ class DisplayEvent:
 class SimulationDisplay:
     """Panneau Rich Live mis à jour en place pendant la simulation."""
 
-    def __init__(self, run_id: int, total: int, batch_size: int):
+    def __init__(self, run_id: int, total: int, batch_size: int, flags: list[str] | None = None):
         self.run_id = run_id
         self.total = total
         self.batch_size = batch_size
+        self.flags = flags or []
         self.events: deque[DisplayEvent] = deque(maxlen=200)
         self.t0 = time.monotonic()
         self.cursor = 0
@@ -125,6 +126,8 @@ class SimulationDisplay:
         elapsed_str = f"{elapsed_min}min {elapsed_sec}s" if elapsed_min else f"{elapsed_sec}s"
 
         lines = []
+        if self.flags:
+            lines.append(f" [bold magenta]{' '.join(self.flags)}[/bold magenta]")
         lines.append(f" {bar}  {self.cursor}/{self.total} ({pct}%)  {rate:.1f}p/s")
         lines.append(f" Elapsed {elapsed_str}    ETA {eta_str}    cost ~${self.cost:.2f}")
 
@@ -233,6 +236,7 @@ class SimulationDisplay:
         n = self.n_processed or 1
         return {
             "runId": self.run_id,
+            "flags": self.flags,
             "cursor": self.cursor,
             "total": self.total,
             "nProcessed": self.n_processed,

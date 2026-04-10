@@ -240,7 +240,22 @@ async def run_simulation(args) -> int:
 
         total = len(post_inputs)
         feed = sum(1 for post in post_inputs if post.media_product_type == "FEED")
-        display = SimulationDisplay(run_id=run_id, total=total, batch_size=args.batch_size)
+
+        run_flags: list[str] = []
+        if args.sgd:
+            run_flags.append("--sgd")
+        if args.split != "dev":
+            run_flags.append(f"--split={args.split}")
+        if args.dry_run:
+            run_flags.append("--dry-run")
+        if args.no_rollback:
+            run_flags.append("--no-rollback")
+        if args.delta != 0.0:
+            run_flags.append(f"--delta={args.delta}")
+        if args.protegi_paper_defaults:
+            run_flags.append("--protegi-paper-defaults")
+
+        display = SimulationDisplay(run_id=run_id, total=total, batch_size=args.batch_size, flags=run_flags)
 
         def _on_api(agent, model, latency_ms, in_tok, out_tok, status):
             display.add_api_log(agent, model, latency_ms, in_tok, out_tok, status)
