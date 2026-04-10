@@ -27,14 +27,19 @@ import logging
 import sys
 import time
 from collections import Counter, defaultdict
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 
 from rich.console import Console
 from rich.live import Live
-from rich.logging import RichHandler
 
-from milpo.async_inference import async_classify_batch, async_classify_post, get_async_client
+from milpo.async_inference import (
+    async_call_descriptor,
+    async_classify_batch,
+    async_classify_with_features,
+    get_async_client,
+)
 from milpo.bandits import successive_rejects
 from milpo.config import MODEL_CRITIC, MODEL_EDITOR, MODEL_PARAPHRASER
 from milpo.db import (
@@ -61,6 +66,8 @@ from milpo.eval import accuracy
 from milpo.errors import LLMCallError
 from milpo.gcs import sign_all_posts_media
 from milpo.inference import ApiCallLog, PipelineResult, PostInput, PromptSet, classify_post
+from milpo.router import route as route_post
+from milpo.schemas import DescriptorFeatures
 from milpo.rewriter import (
     ErrorCase,
     ProtegiStepResult,
@@ -111,6 +118,7 @@ class MatchRecord:
     axis: str
     match: bool
     cursor: int
+    scope: str | None = None
 
 
 @dataclass
@@ -333,7 +341,7 @@ def classify_and_store(
             raw_response=pred.features.model_dump() if axis == "visual_format" else None,
             simulation_run_id=run_id,
         )
-        matches.append(MatchRecord(axis=axis, match=is_match, cursor=0))
+        matches.append(MatchRecord(axis=axis, match=is_match, cursor=0, scope=scope))
 
         if not is_match:
             # Charger les descriptions des labels
@@ -430,7 +438,7 @@ def evaluate_result_and_store(
             raw_response=pred.features.model_dump() if axis == "visual_format" else None,
             simulation_run_id=run_id,
         )
-        matches.append(MatchRecord(axis=axis, match=is_match, cursor=0))
+        matches.append(MatchRecord(axis=axis, match=is_match, cursor=0, scope=scope))
 
         if not is_match:
             # Charger les descriptions des labels
@@ -614,29 +622,20 @@ async def async_multi_evaluate(
     run_id: int,
     labels_by_scope: dict[str, dict[str, list[str]]],
     max_concurrent_api: int = 20,
+    on_progress: Callable[[int, int], None] | None = None,
 ) -> MultiEvalResult:
     """Évalue N bras (incumbent + candidats) sur eval_posts en parallèle.
 
-    Version async : parallélise à la fois les posts ET les bras pour un gain
-    de ~5-10x par rapport à l'ancienne version séquentielle sur les posts.
-
-    Args:
-        arms: {arm_id: (instructions, prompt_db_id)} — inclut l'incumbent sous
-              `incumbent_arm_id`. Chaque arm_id doit être unique et stable sur
-              toute la durée du multi_evaluate (typiquement le row id de
-              rewrite_beam_candidates pour les candidats, et 0 pour l'incumbent).
-
-    Returns:
-        MultiEvalResult avec matches_by_arm[arm_id] = liste des matches du bras
-        sur les eval_posts (uniquement pour les axes pertinents pour la cible),
-        et incumbent_records pour réinjection dans les métriques globales.
+    Optimisé : le descripteur est appelé UNE SEULE FOIS par post (les features
+    sont partagées entre les bras). Seuls les classifieurs sont dupliqués par bras.
+    Gain : ~600 calls → ~210 calls pour 5 bras × 30 posts.
     """
     if incumbent_arm_id not in arms:
         raise ValueError(
             f"multi_evaluate: incumbent_arm_id={incumbent_arm_id} absent de arms"
         )
 
-    # Construire un PromptState par bras (cache hors boucle posts)
+    # Construire un PromptState par bras
     arm_states: dict[int, PromptState] = {}
     for arm_id, (instructions, db_id) in arms.items():
         arm_states[arm_id] = PromptState(
@@ -652,7 +651,7 @@ async def async_multi_evaluate(
         )
 
     # Séparer posts par cas : scope-mismatch (incumbent seul) vs normal (tous les bras)
-    mismatch_posts: list[tuple[int, PostInput, dict]] = []  # (offset, post, annotation)
+    mismatch_posts: list[tuple[int, PostInput, dict]] = []
     normal_posts: list[tuple[int, PostInput, dict]] = []
 
     for offset, post in enumerate(eval_posts):
@@ -665,48 +664,82 @@ async def async_multi_evaluate(
         else:
             normal_posts.append((offset, post, annotation))
 
-    # Préparer les structures de résultat
     matches_by_arm: dict[int, list[bool]] = {arm_id: [] for arm_id in arms}
     incumbent_records: list[MatchRecord] = []
-    # Stocker les résultats bruts pour traitement séquentiel BDD après
-    raw_results: list[tuple[int, PostInput, dict, int, PipelineResult]] = []  # (offset, post, annotation, arm_id, result)
 
     client = get_async_client()
     semaphore = asyncio.Semaphore(max_concurrent_api)
 
-    # Pré-calcul des prompts par (arm_id, scope) — hors coroutines pour éviter
-    # N×arms appels DB synchrones bloquant l'event loop.
+    # Pré-calcul des prompts par (arm_id, scope)
     scopes_needed = {post.media_product_type for _, post, _ in mismatch_posts + normal_posts}
     prompts_cache: dict[tuple[int, str], PromptSet] = {}
     for arm_id in arms:
         for sc in scopes_needed:
             prompts_cache[(arm_id, sc)] = build_prompts_from_state(arm_states[arm_id], conn, sc)
 
-    # ── 1. Traiter les posts mismatch en parallèle (incumbent seulement) ──
+    # ── Phase 1 : pré-calculer les features descripteur (1 appel par post) ──
+    async def _describe_post(post: PostInput):
+        scope = post.media_product_type
+        inc_prompts = prompts_cache[(incumbent_arm_id, scope)]
+        routing = route_post(scope)
+        features, desc_log = await async_call_descriptor(
+            client=client,
+            model=routing["model_descriptor"],
+            media_urls=post.media_urls,
+            media_types=post.media_types,
+            caption=post.caption,
+            instructions=inc_prompts.descriptor_instructions,
+            descriptions_taxonomiques=inc_prompts.descriptor_descriptions,
+            semaphore=semaphore,
+        )
+        return (post.ig_media_id, features, desc_log)
+
+    all_posts = [post for _, post, _ in mismatch_posts + normal_posts]
+    desc_results = await asyncio.gather(
+        *[_describe_post(p) for p in all_posts],
+        return_exceptions=True,
+    )
+
+    # Indexer les features par post id
+    features_by_id: dict[int, tuple[DescriptorFeatures, ApiCallLog]] = {}
+    for r in desc_results:
+        if isinstance(r, Exception):
+            log.warning("Descripteur échoué dans multi_evaluate: %s", r)
+            continue
+        post_id, features, desc_log = r
+        features_by_id[post_id] = (features, desc_log)
+
+    # ── Phase 2 : classifier avec features pré-calculées ──
+    # Mismatch : incumbent seul, pipeline complet avec features
     async def classify_mismatch(offset: int, post: PostInput, annotation: dict):
+        if post.ig_media_id not in features_by_id:
+            return None
+        features, desc_log = features_by_id[post.ig_media_id]
         scope = post.media_product_type
         labels = labels_by_scope[scope]
         prompts = prompts_cache[(incumbent_arm_id, scope)]
-        result = await async_classify_post(
-            post, prompts,
+        result = await async_classify_with_features(
+            post, features, desc_log, prompts,
             labels["category"], labels["visual_format"], labels["strategy"],
             client, semaphore,
         )
-        return (offset, post, annotation, incumbent_arm_id, result, True)  # True = mismatch
+        return (offset, post, annotation, incumbent_arm_id, result, True)
 
-    # ── 2. Traiter les posts normaux × tous les bras en parallèle ──
+    # Normal : tous les bras, classifieurs seuls (features partagées)
     async def classify_normal(offset: int, post: PostInput, annotation: dict, arm_id: int):
+        if post.ig_media_id not in features_by_id:
+            return None
+        features, desc_log = features_by_id[post.ig_media_id]
         scope = post.media_product_type
         labels = labels_by_scope[scope]
         prompts = prompts_cache[(arm_id, scope)]
-        result = await async_classify_post(
-            post, prompts,
+        result = await async_classify_with_features(
+            post, features, desc_log, prompts,
             labels["category"], labels["visual_format"], labels["strategy"],
             client, semaphore,
         )
-        return (offset, post, annotation, arm_id, result, False)  # False = normal
+        return (offset, post, annotation, arm_id, result, False)
 
-    # Lancer toutes les tâches en parallèle
     tasks = []
     for offset, post, annotation in mismatch_posts:
         tasks.append(classify_mismatch(offset, post, annotation))
@@ -714,7 +747,23 @@ async def async_multi_evaluate(
         for arm_id in arms:
             tasks.append(classify_normal(offset, post, annotation, arm_id))
 
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    eval_done = 0
+    eval_total = len(tasks) + len(all_posts)  # descripteurs + classifieurs
+
+    # Compter les descripteurs déjà terminés
+    eval_done = len([r for r in desc_results if not isinstance(r, Exception)])
+    if on_progress:
+        on_progress(eval_done, eval_total)
+
+    async def _track(coro):
+        nonlocal eval_done
+        result = await coro
+        eval_done += 1
+        if on_progress:
+            on_progress(eval_done, eval_total)
+        return result
+
+    results = await asyncio.gather(*[_track(t) for t in tasks], return_exceptions=True)
 
     # ── 3. Post-traitement séquentiel (stockage BDD + agrégation matches) ──
     # Grouper par (offset, post) pour traitement cohérent
@@ -760,6 +809,7 @@ async def async_multi_evaluate(
                     axis=axis,
                     match=getattr(result.prediction, axis) == annotation[axis],
                     cursor=start_cursor + offset,
+                    scope=scope,
                 ))
             for call in result.api_calls:
                 scope_key = scope if call.agent in ("descriptor", "visual_format") else None
@@ -807,6 +857,7 @@ async def async_multi_evaluate(
                             axis=axis,
                             match=getattr(result.prediction, axis) == annotation[axis],
                             cursor=start_cursor + offset,
+                            scope=scope,
                         ))
                 else:
                     _store_eval_predictions_for_target(
@@ -967,6 +1018,7 @@ async def run_protegi_rewrite(
     eval_start_cursor: int,
     annotations: dict[int, dict],
     labels_by_scope: dict[str, dict[str, list[str]]],
+    on_status: Callable[[str], None] | None = None,
 ) -> RewriteOutcome:
     """Boucle ProTeGi (Pryzant et al. 2023, EMNLP) : gradient + edit + paraphrase + Successive Rejects.
 
@@ -1001,6 +1053,7 @@ async def run_protegi_rewrite(
             m=args.protegi_m,
             c=args.protegi_c,
             p=args.protegi_p,
+            on_phase=on_status,
         )
     except LLMCallError as exc:
         log.warning("[REWRITE #%d] (protegi) Échec %s/%s : %s",
@@ -1066,6 +1119,13 @@ async def run_protegi_rewrite(
     log.info("[REWRITE #%d] (protegi) multi_evaluate %d bras × %d posts",
              rewrite_count, len(arms), len(eval_posts))
 
+    if on_status:
+        on_status(f"eval {len(arms)} bras \u00d7 {len(eval_posts)} posts...")
+
+    def _on_eval_progress(done: int, total: int):
+        if on_status:
+            on_status(f"eval {done}/{total}")
+
     try:
         multi_result = await async_multi_evaluate(
             eval_posts=eval_posts,
@@ -1079,6 +1139,7 @@ async def run_protegi_rewrite(
             conn=conn,
             run_id=run_id,
             labels_by_scope=labels_by_scope,
+            on_progress=_on_eval_progress,
         )
     except LLMCallError as exc:
         log.warning("[REWRITE #%d] (protegi) Échec multi_evaluate : %s", rewrite_count, exc)
@@ -1119,6 +1180,8 @@ async def run_protegi_rewrite(
             failed=False,
         )
 
+    if on_status:
+        on_status("bandit SR...")
     sr_result = successive_rejects(sr_input, k=1)
     winner_beam_row_id = sr_result.winner_arm_id
     winner_acc = sr_result.winner_score
@@ -1250,6 +1313,13 @@ async def main():
     n_processed = 0
     total_api_calls = 0
     live_cost_estimate_usd = 0.0
+    total_input_tokens = 0
+    total_output_tokens = 0
+    matches_by_scope: dict[str, dict[str, int]] = {
+        "FEED": {"category": 0, "visual_format": 0, "strategy": 0},
+        "REELS": {"category": 0, "visual_format": 0, "strategy": 0},
+    }
+    n_by_scope: dict[str, int] = {"FEED": 0, "REELS": 0}
     rewrite_count = 0
     promoted_rewrite_count = 0
     rollback_rewrite_count = 0
@@ -1403,10 +1473,15 @@ async def main():
                     all_matches.append(m)
                     if m.match:
                         matches_by_axis[m.axis] += 1
+                        if m.scope:
+                            matches_by_scope[m.scope][m.axis] += 1
 
                 error_buffer.extend(errors)
                 n_processed += 1
+                n_by_scope[post.media_product_type] += 1
                 total_api_calls += len(result.api_calls)
+                total_input_tokens += result.total_input_tokens
+                total_output_tokens += result.total_output_tokens
                 live_cost_estimate_usd += sum(
                     c.input_tokens * 0.0001 / 1000 + c.output_tokens * 0.0003 / 1000
                     for c in result.api_calls
@@ -1421,6 +1496,10 @@ async def main():
             # Mettre à jour le display
             display.sync(cursor, n_processed, matches_by_axis,
                          len(error_buffer), live_cost_estimate_usd, prompt_state.versions)
+            display.total_input_tokens = total_input_tokens
+            display.total_output_tokens = total_output_tokens
+            display.matches_by_scope = matches_by_scope
+            display.n_by_scope = n_by_scope
             display.update_rolling(all_matches)
             live.update(display.build())
 
@@ -1457,11 +1536,16 @@ async def main():
                 )
                 live.update(display.build())
 
+                def _on_rewrite_status(msg: str):
+                    display.set_rewrite_phase(msg)
+                    live.update(display.build())
+
                 outcome = await run_protegi_rewrite(
                     args, conn, run_id, rewrite_count,
                     target_agent, target_scope, target_errors,
                     prompt_state, eval_posts, cursor,
                     annotations, labels_by_scope,
+                    on_status=_on_rewrite_status,
                 )
 
                 if outcome.failed:
@@ -1481,12 +1565,26 @@ async def main():
                     else:
                         rollback_rewrite_count += 1
                         consecutive_failures += 1
-                        display.add_event(f"REWRITE #{rewrite_count} ROLLBACK")
+                        delta = (outcome.candidate_acc - outcome.incumbent_acc) * 100
+                        display.add_event(
+                            f"REWRITE #{rewrite_count} ROLLBACK "
+                            f"({outcome.incumbent_acc*100:.1f}% vs {outcome.candidate_acc*100:.1f}%, {delta:+.1f}%)"
+                        )
 
                     for match_record in outcome.incumbent_records:
                         all_matches.append(match_record)
                         if match_record.match:
                             matches_by_axis[match_record.axis] += 1
+
+                    # Accumuler scope depuis les incumbent_records
+                    rewrite_scope_posts: dict[str, int] = {}
+                    for mr in outcome.incumbent_records:
+                        if mr.scope:
+                            if mr.match:
+                                matches_by_scope[mr.scope][mr.axis] += 1
+                            rewrite_scope_posts[mr.scope] = rewrite_scope_posts.get(mr.scope, 0) + 1
+                    for sc, cnt in rewrite_scope_posts.items():
+                        n_by_scope[sc] += cnt // 3  # 3 axes par post
 
                     n_processed += outcome.eval_window_consumed
                     n_arms = 1 + (
@@ -1497,11 +1595,16 @@ async def main():
                     cursor += outcome.eval_window_consumed
                     error_buffer.clear()
 
+                display.set_rewrite_phase(None)
                 display.phase = "classification"
                 display.rewrites_promoted = promoted_rewrite_count
                 display.rewrites_rollback = rollback_rewrite_count
                 display.sync(cursor, n_processed, matches_by_axis,
                              len(error_buffer), live_cost_estimate_usd, prompt_state.versions)
+                display.total_input_tokens = total_input_tokens
+                display.total_output_tokens = total_output_tokens
+                display.matches_by_scope = matches_by_scope
+                display.n_by_scope = n_by_scope
                 live.update(display.build())
 
                 if consecutive_failures >= args.patience:

@@ -275,6 +275,55 @@ async def async_classify_post(
     return PipelineResult(prediction=prediction, api_calls=api_calls)
 
 
+async def async_classify_with_features(
+    post: PostInput,
+    features: DescriptorFeatures,
+    desc_log: ApiCallLog,
+    prompts: PromptSet,
+    category_labels: list[str],
+    visual_format_labels: list[str],
+    strategy_labels: list[str],
+    client: AsyncOpenAI,
+    semaphore: asyncio.Semaphore,
+) -> PipelineResult:
+    """Pipeline async sans appel descripteur — réutilise des features pré-calculées.
+
+    Utilisé par async_multi_evaluate pour éviter de relancer le descripteur
+    Gemini pour chaque bras du bandit (seul le prompt classifieur cible change).
+    """
+    api_calls: list[ApiCallLog] = [desc_log]
+    features_json = features.model_dump_json(indent=2)
+
+    classifiers = {
+        "category": (category_labels, prompts.category_instructions, prompts.category_descriptions),
+        "visual_format": (visual_format_labels, prompts.visual_format_instructions, prompts.visual_format_descriptions),
+        "strategy": (strategy_labels, prompts.strategy_instructions, prompts.strategy_descriptions),
+    }
+
+    async def _classify(axis: str, labels: list[str], instr: str, desc: str):
+        return axis, await async_call_classifier(
+            client, MODEL_CLASSIFIER, axis, labels,
+            features_json, post.caption, instr, desc, semaphore,
+        )
+
+    tasks = [_classify(ax, lb, ins, ds) for ax, (lb, ins, ds) in classifiers.items()]
+    classifier_results = await asyncio.gather(*tasks)
+
+    results: dict[str, str] = {}
+    for axis, (label, confidence, clf_log) in classifier_results:
+        results[axis] = label
+        api_calls.append(clf_log)
+
+    prediction = PostPrediction(
+        ig_media_id=post.ig_media_id,
+        category=results["category"],
+        visual_format=results["visual_format"],
+        strategy=results["strategy"],
+        features=features,
+    )
+    return PipelineResult(prediction=prediction, api_calls=api_calls)
+
+
 async def async_classify_batch(
     posts: list[PostInput],
     prompts_by_scope: dict[str, PromptSet],

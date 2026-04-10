@@ -30,9 +30,26 @@ class SimulationDisplay:
         self.rewrites_promoted = 0
         self.rewrites_rollback = 0
 
+        # Télémétrie rewrite (sous-phase)
+        self.rewrite_sub_phase: str | None = None
+
+        # Tokens cumulés
+        self.total_input_tokens: int = 0
+        self.total_output_tokens: int = 0
+
+        # Accuracy FEED/REELS
+        self.matches_by_scope: dict[str, dict[str, int]] = {
+            "FEED": {"category": 0, "visual_format": 0, "strategy": 0},
+            "REELS": {"category": 0, "visual_format": 0, "strategy": 0},
+        }
+        self.n_by_scope: dict[str, int] = {"FEED": 0, "REELS": 0}
+
     def add_event(self, msg: str):
         ts = datetime.now().strftime("%H:%M:%S")
         self.events.appendleft(f"{ts}  {msg}")
+
+    def set_rewrite_phase(self, sub_phase: str | None):
+        self.rewrite_sub_phase = sub_phase
 
     def build(self) -> Panel:
         elapsed = time.monotonic() - self.t0
@@ -57,6 +74,14 @@ class SimulationDisplay:
         lines = []
         lines.append(f" {bar}  {self.cursor}/{self.total} ({pct}%)  {rate:.1f}p/s")
         lines.append(f" Elapsed {elapsed_str}    ETA {eta_str}    cost ~${self.cost:.2f}")
+
+        def _fmt_tok(n: int) -> str:
+            return f"{n / 1_000_000:.1f}M" if n >= 1_000_000 else f"{n / 1_000:.0f}K"
+
+        lines.append(
+            f" Tokens  {_fmt_tok(self.total_input_tokens)} in / "
+            f"{_fmt_tok(self.total_output_tokens)} out"
+        )
         lines.append("\u2500" * 52)
         lines.append(f" Accuracy   cat={acc_cat:.1f}%  vf={acc_vf:.1f}%  str={acc_str:.1f}%")
         if self.rolling_acc:
@@ -65,9 +90,21 @@ class SimulationDisplay:
                 f" Rolling50  cat={r.get('cat', 0):.1f}%  "
                 f"vf={r.get('vf', 0):.1f}%  str={r.get('str', 0):.1f}%"
             )
+        for scope in ("FEED", "REELS"):
+            ns = self.n_by_scope.get(scope, 0)
+            if ns > 0:
+                ms = self.matches_by_scope[scope]
+                lines.append(
+                    f" {scope:5s} {ns:>3d}  "
+                    f"cat={ms['category'] / ns * 100:.0f}%  "
+                    f"vf={ms['visual_format'] / ns * 100:.0f}%  "
+                    f"str={ms['strategy'] / ns * 100:.0f}%"
+                )
         lines.append(f" Prompts    v{max_v}    Buffer err={self.error_count}/{self.batch_size}")
         if self.phase != "classification":
             lines.append(f" [bold cyan]{self.phase}[/bold cyan]")
+            if self.rewrite_sub_phase:
+                lines.append(f"   \u2514\u2500 {self.rewrite_sub_phase}")
 
         stats_parts = []
         if self.rewrites_promoted:

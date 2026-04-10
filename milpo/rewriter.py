@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from openai import OpenAI
@@ -589,6 +590,7 @@ def protegi_step(
     editor_model: str = MODEL_EDITOR,
     paraphraser_model: str = MODEL_PARAPHRASER,
     client: OpenAI | None = None,
+    on_phase: Callable[[str], None] | None = None,
 ) -> ProtegiStepResult:
     """Orchestre les 3 étapes ProTeGi : critic → editor → paraphraser.
 
@@ -619,6 +621,8 @@ def protegi_step(
     )
 
     # Étape 1 — gradient
+    if on_phase:
+        on_phase("critic (LLM_\u2207)...")
     gradient = compute_textual_gradient(
         target_agent, target_scope, current_instructions, errors,
         all_descriptions, m=m, model=critic_model, client=client,
@@ -627,6 +631,8 @@ def protegi_step(
              gradient.n_critiques, gradient.latency_ms)
 
     # Étape 2 — édition
+    if on_phase:
+        on_phase("editor (LLM_\u03b4)...")
     edit = apply_gradient_edit(
         target_agent, target_scope, current_instructions, gradient.gradient_text,
         errors, all_descriptions, c=c, model=editor_model, client=client,
@@ -638,6 +644,8 @@ def protegi_step(
     paraphrases: list[ParaphraseResult] = []
     if p > 1:
         for i, cand in enumerate(edit.candidates):
+            if on_phase:
+                on_phase(f"paraphrase {i + 1}/{len(edit.candidates)}")
             pr = paraphrase_candidate(
                 cand.new_instructions, p=p, model=paraphraser_model, client=client,
             )
