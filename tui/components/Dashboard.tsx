@@ -42,7 +42,8 @@ const StatusIndicator: React.FC<{ state: TelemetryState }> = ({ state }) => {
 };
 
 export const Dashboard: React.FC<{ state: TelemetryState; done: boolean; exitCode?: number | null }> = ({ state, done, exitCode }) => {
-  const failed = done && exitCode !== null && exitCode !== 0;
+  const completed = done && state.cursor >= state.total;
+  const failed = done && !completed;
   const { stdout } = useStdout();
   const [termRows, setTermRows] = useState(stdout.rows ?? 24);
   const [, setTick] = useState(0);
@@ -80,7 +81,7 @@ export const Dashboard: React.FC<{ state: TelemetryState; done: boolean; exitCod
 
   const borderColor = failed ? "red" : done ? "green" : "blue";
   const title = failed
-    ? ` MILPO Simulation \u2014 run #${localState.runId} \u2014 CRASHED (exit ${exitCode})`
+    ? ` MILPO Simulation \u2014 run #${localState.runId} \u2014 CRASHED (${localState.cursor}/${localState.total})`
     : done
       ? ` MILPO Simulation \u2014 run #${localState.runId} \u2014 DONE`
       : ` MILPO Simulation \u2014 run #${localState.runId}`;

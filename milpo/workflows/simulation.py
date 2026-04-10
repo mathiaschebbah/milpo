@@ -524,7 +524,7 @@ async def run_simulation(args) -> int:
                 fail_run(conn, run_id, "interrupted", metrics)
             except Exception as db_exc:
                 log.warning("fail_run échoué: %s", db_exc)
-        raise
+        sys.exit(1)
     except Exception as exc:
         print()
         log.setLevel(logging.INFO)
