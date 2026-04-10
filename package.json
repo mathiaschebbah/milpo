@@ -1,0 +1,8 @@
+{
+  "name": "milpo",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "milpo": "./bin/milpo.js"
+  }
+}
