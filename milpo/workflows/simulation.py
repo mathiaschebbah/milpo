@@ -515,7 +515,17 @@ async def run_simulation(args) -> int:
         log.info("  simulation_run_id = %d", run_id)
         log.info("✓ Simulation terminée")
         return run_id
-    except BaseException as exc:
+    except (KeyboardInterrupt, SystemExit):
+        log.info("Simulation interrompue par l'utilisateur (run_id=%s)", run_id)
+        if run_id is not None:
+            try:
+                conn.rollback()
+                metrics = build_run_metrics(matches_by_axis, n_processed, rewrite_count, total_api_calls)
+                fail_run(conn, run_id, "interrupted", metrics)
+            except Exception as db_exc:
+                log.warning("fail_run échoué: %s", db_exc)
+        raise
+    except Exception as exc:
         print()
         log.setLevel(logging.INFO)
         log.exception("[FATAL] Simulation interrompue: %s", exc)
