@@ -37,7 +37,7 @@ def get_async_client() -> AsyncOpenAI:
     return AsyncOpenAI(
         base_url=OPENROUTER_BASE_URL,
         api_key=OPENROUTER_API_KEY,
-        timeout=90.0,  # évite le hang infini sur calls Gemini/OpenRouter bloqués
+        timeout=20.0,
     )
 
 
