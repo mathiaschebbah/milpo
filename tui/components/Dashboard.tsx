@@ -41,7 +41,8 @@ const StatusIndicator: React.FC<{ state: TelemetryState }> = ({ state }) => {
   );
 };
 
-export const Dashboard: React.FC<{ state: TelemetryState; done: boolean }> = ({ state, done }) => {
+export const Dashboard: React.FC<{ state: TelemetryState; done: boolean; exitCode?: number | null }> = ({ state, done, exitCode }) => {
+  const failed = done && exitCode !== null && exitCode !== 0;
   const { stdout } = useStdout();
   const [termRows, setTermRows] = useState(stdout.rows ?? 24);
   const [, setTick] = useState(0);
@@ -77,9 +78,12 @@ export const Dashboard: React.FC<{ state: TelemetryState; done: boolean }> = ({ 
     etaSec: state.etaSec !== null ? Math.max(0, state.etaSec - sinceLastState) : null,
   };
 
-  const title = done
-    ? ` MILPO Simulation \u2014 run #${localState.runId} \u2014 DONE`
-    : ` MILPO Simulation \u2014 run #${localState.runId}`;
+  const borderColor = failed ? "red" : done ? "green" : "blue";
+  const title = failed
+    ? ` MILPO Simulation \u2014 run #${localState.runId} \u2014 CRASHED (exit ${exitCode})`
+    : done
+      ? ` MILPO Simulation \u2014 run #${localState.runId} \u2014 DONE`
+      : ` MILPO Simulation \u2014 run #${localState.runId}`;
 
   // Fixed header = ~9 lines (progress 2 + separator 1 + accuracy 3 + status 2 + separator 1)
   // Border top/bottom = 2 lines, title = 1 line, blank = 1 line
@@ -91,11 +95,11 @@ export const Dashboard: React.FC<{ state: TelemetryState; done: boolean }> = ({ 
     <Box
       flexDirection="column"
       borderStyle="round"
-      borderColor={done ? "green" : "blue"}
+      borderColor={borderColor}
       paddingX={1}
       height={termRows}
     >
-      <Text bold color={done ? "green" : "blue"}>{title}</Text>
+      <Text bold color={borderColor}>{title}</Text>
       <Text>{""}</Text>
       <ProgressBar state={localState} />
       <Text dimColor>{" "}{"\u2500".repeat(52)}</Text>

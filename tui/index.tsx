@@ -209,7 +209,7 @@ const App: React.FC = () => {
     return <InitStatus progress={initProgress} wsUrl={wsUrl} />;
   }
 
-  return <Dashboard state={state} done={pythonExited} />;
+  return <Dashboard state={state} done={pythonExited} exitCode={exitCode} />;
 };
 
 render(<App />);
