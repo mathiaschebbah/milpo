@@ -86,10 +86,11 @@ export const Dashboard: React.FC<{ state: TelemetryState; done: boolean; exitCod
       ? ` MILPO Simulation \u2014 run #${localState.runId} \u2014 DONE`
       : ` MILPO Simulation \u2014 run #${localState.runId}`;
 
-  // Fixed header = ~9 lines (progress 2 + separator 1 + accuracy 3 + status 2 + separator 1)
-  // Border top/bottom = 2 lines, title = 1 line, blank = 1 line
-  // Total overhead ~13 lines
-  const headerOverhead = 13;
+  // Fixed header = ~9 lines (progress 2 + separator 1 + accuracy 4 + status 2 + separator 1)
+  // Border top/bottom = 2 lines, title = 1 line, flags = 0-1 line, blank = 1 line
+  // Total overhead ~14-15 lines
+  const hasFlags = localState.flags && localState.flags.length > 0;
+  const headerOverhead = hasFlags ? 15 : 14;
   const eventsHeight = Math.max(4, termRows - headerOverhead);
 
   return (
@@ -101,6 +102,9 @@ export const Dashboard: React.FC<{ state: TelemetryState; done: boolean; exitCod
       height={termRows}
     >
       <Text bold color={borderColor}>{title}</Text>
+      {localState.flags && localState.flags.length > 0 && (
+        <Text color="magenta" bold>{" "}{localState.flags.join("  ")}</Text>
+      )}
       <Text>{""}</Text>
       <ProgressBar state={localState} />
       <Text dimColor>{" "}{"\u2500".repeat(52)}</Text>

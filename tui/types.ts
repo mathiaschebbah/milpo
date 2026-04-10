@@ -7,6 +7,7 @@ export interface ScopeAccuracy {
 
 export interface TelemetryState {
   runId: number;
+  flags: string[];
   cursor: number;
   total: number;
   nProcessed: number;
@@ -15,6 +16,7 @@ export interface TelemetryState {
   etaSec: number | null;
 
   accuracy: { category: number; visualFormat: number; strategy: number };
+  loss: { category: number; visualFormat: number; strategy: number };
   rolling50: { cat: number; vf: number; str: number } | null;
   byScope: {
     FEED: ScopeAccuracy;

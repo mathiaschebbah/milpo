@@ -19,10 +19,16 @@ const ScopeRow: React.FC<{ label: string; s: ScopeAccuracy }> = ({ label, s }) =
 };
 
 export const AccuracyPanel: React.FC<{ state: TelemetryState }> = ({ state }) => {
-  const { accuracy, rolling50, byScope } = state;
+  const { accuracy, loss, rolling50, byScope } = state;
 
   return (
     <Box flexDirection="column">
+      <Text>
+        {" "}Loss{"       "}
+        <Text color="red">cat={loss.category.toFixed(1)}%</Text>{"  "}
+        <Text color="red">vf={loss.visualFormat.toFixed(1)}%</Text>{"  "}
+        <Text color="red">str={loss.strategy.toFixed(1)}%</Text>
+      </Text>
       <Text>
         {" "}Accuracy{"   "}
         <Text color="green">cat={accuracy.category.toFixed(1)}%</Text>{"  "}
