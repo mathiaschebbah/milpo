@@ -250,15 +250,14 @@ async def run_simulation(args) -> int:
 
         post_timeout = 120
         with Live(display.build(), refresh_per_second=2, console=console, screen=True) as live:
-            async def _with_heartbeat(coro, label="rewrite..."):
-                """Run a coroutine with periodic 2s heartbeat updates."""
+            async def _with_heartbeat(coro):
+                """Run a coroutine with periodic 2s display refresh (no heartbeat reset)."""
                 task = asyncio.ensure_future(coro)
                 try:
                     while not task.done():
                         done_set, _ = await asyncio.wait({task}, timeout=2)
                         if done_set:
                             return task.result()
-                        display.heartbeat(label)
                         live.update(display.build())
                         emit_telemetry(display)
                     return task.result()
@@ -381,6 +380,7 @@ async def run_simulation(args) -> int:
 
                     def _on_rewrite_status(msg: str):
                         display.set_rewrite_phase(msg)
+                        display.heartbeat(msg[:30])
 
                     try:
                         outcome = await asyncio.wait_for(
