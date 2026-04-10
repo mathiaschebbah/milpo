@@ -304,14 +304,21 @@ async def run_simulation(args) -> int:
                         batch_cursor += 1
                         continue
 
-                    errors, matches = evaluate_result_and_store(
-                        post,
-                        result,
-                        annotations[post.ig_media_id],
-                        prompt_state,
-                        conn,
-                        run_id,
-                    )
+                    try:
+                        errors, matches = evaluate_result_and_store(
+                            post,
+                            result,
+                            annotations[post.ig_media_id],
+                            prompt_state,
+                            conn,
+                            run_id,
+                        )
+                    except Exception as exc:
+                        log.warning("evaluate_result_and_store échoué post %s: %s", post.ig_media_id, exc)
+                        skipped_classification_posts += 1
+                        batch_skipped += 1
+                        batch_cursor += 1
+                        continue
 
                     for match_record in matches:
                         match_record.cursor = batch_cursor
@@ -403,6 +410,19 @@ async def run_simulation(args) -> int:
                         )
                     except asyncio.TimeoutError:
                         display.add_event(f"REWRITE #{rewrite_count} TIMEOUT (600s)")
+                        outcome = RewriteOutcome(
+                            triggered=True,
+                            promoted=False,
+                            winner_db_id=None,
+                            incumbent_acc=None,
+                            candidate_acc=None,
+                            eval_window_consumed=0,
+                            incumbent_records=[],
+                            failed=True,
+                        )
+                    except Exception as exc:
+                        log.warning("REWRITE #%d crash: %s", rewrite_count, exc)
+                        display.add_event(f"REWRITE #{rewrite_count} CRASH: {exc}", event_type="error")
                         outcome = RewriteOutcome(
                             triggered=True,
                             promoted=False,
