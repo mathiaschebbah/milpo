@@ -16,9 +16,7 @@ import argparse
 import asyncio
 import json
 import logging
-import sys
 import time
-from dataclasses import dataclass
 
 from milpo.async_inference import async_classify_batch
 from milpo.db import (

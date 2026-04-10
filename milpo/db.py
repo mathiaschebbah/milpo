@@ -292,23 +292,6 @@ def load_dev_annotations(conn: psycopg.Connection) -> dict[int, dict]:
 # ── Prompt lifecycle ──────────────────────────────────────────
 
 
-def retire_prompt(conn: psycopg.Connection, prompt_id: int) -> None:
-    """Passe un prompt en status='retired'."""
-    conn.execute(
-        "UPDATE prompt_versions SET status = 'retired'::prompt_status WHERE id = %s",
-        (prompt_id,),
-    )
-    conn.commit()
-
-
-def activate_prompt(conn: psycopg.Connection, prompt_id: int) -> None:
-    """Passe un prompt en status='active'."""
-    conn.execute(
-        "UPDATE prompt_versions SET status = 'active'::prompt_status WHERE id = %s",
-        (prompt_id,),
-    )
-    conn.commit()
-
 
 def promote_prompt(
     conn: psycopg.Connection,

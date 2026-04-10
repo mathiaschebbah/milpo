@@ -128,7 +128,6 @@ class TuiRenderer:
             posts_min = completed / elapsed_min
             tok_min = s.total_executor_input_tokens / elapsed_min
             cache_pct = (s.executor_cache_hits / s.executor_successes * 100) if s.executor_successes else 0.0
-            adv_pct = (s.posts_with_advisor / completed * 100) if completed else 0.0
             p50 = int(statistics.median(s.latencies_ms)) if s.latencies_ms else 0
             p95 = _percentile(s.latencies_ms, 0.95)
             tool_calls = s.total_tool_calls

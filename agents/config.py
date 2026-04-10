@@ -2,13 +2,7 @@
 
 import os
 
-from milpo.config import (
-    DATABASE_DSN,
-    MODEL_DESCRIPTOR_FEED,
-    MODEL_DESCRIPTOR_REELS,
-    OPENROUTER_API_KEY,
-    OPENROUTER_BASE_URL,
-)
+from milpo.config import MODEL_DESCRIPTOR_FEED
 
 # Anthropic API (direct, pas OpenRouter — requis pour l'advisor tool beta)
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")

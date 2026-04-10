@@ -29,7 +29,7 @@ import sys
 import time
 from collections import Counter, defaultdict
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor, as_completed
+
 from dataclasses import dataclass, field
 
 from rich.console import Console
@@ -306,86 +306,8 @@ def build_labels(conn, scope: str) -> dict[str, list[str]]:
     }
 
 
-# ── Classification + stockage d'un post ──────────────────────
 
 
-def classify_and_store(
-    post: PostInput,
-    annotation: dict,
-    prompts: PromptSet,
-    labels: dict[str, list[str]],
-    prompt_state: PromptState,
-    conn,
-    run_id: int,
-    call_type: str = "classification",
-) -> tuple[PipelineResult, list[ErrorCase], list[MatchRecord]]:
-    """Classifie un post, stocke les résultats, retourne les erreurs et matches."""
-    scope = post.media_product_type
-    result = classify_post(
-        post, prompts,
-        labels["category"], labels["visual_format"], labels["strategy"],
-    )
-    pred = result.prediction
-
-    errors: list[ErrorCase] = []
-    matches: list[MatchRecord] = []
-
-    for axis in ("category", "visual_format", "strategy"):
-        predicted = getattr(pred, axis)
-        expected = annotation[axis]
-        is_match = predicted == expected
-
-        # Prompt id pour cet axe
-        scope_key = scope if axis in ("visual_format", "descriptor") else None
-        prompt_id = prompt_state.db_ids.get((axis, scope_key)) or prompt_state.db_ids.get((axis, None))
-
-        store_prediction(
-            conn, pred.ig_media_id, axis, prompt_id,
-            predicted,
-            raw_response=pred.features.model_dump() if axis == "visual_format" else None,
-            simulation_run_id=run_id,
-        )
-        matches.append(MatchRecord(axis=axis, match=is_match, cursor=0, scope=scope))
-
-        if not is_match:
-            # Charger les descriptions des labels
-            desc_predicted = _get_label_description(conn, axis, predicted, scope)
-            desc_expected = _get_label_description(conn, axis, expected, scope)
-            errors.append(ErrorCase(
-                ig_media_id=pred.ig_media_id,
-                axis=axis,
-                prompt_scope=scope if axis == "visual_format" else None,
-                post_scope=scope,
-                predicted=predicted,
-                expected=expected,
-                features_json=pred.features.model_dump_json(indent=2),
-                caption=post.caption,
-                desc_predicted=desc_predicted,
-                desc_expected=desc_expected,
-            ))
-
-    # Stocker descripteur
-    desc_prompt_id = prompt_state.db_ids.get(("descriptor", scope))
-    if desc_prompt_id:
-        store_prediction(
-            conn, pred.ig_media_id, "descriptor", desc_prompt_id,
-            "features_extracted",
-            raw_response=pred.features.model_dump(),
-            simulation_run_id=run_id,
-        )
-
-    # Stocker api_calls
-    for call in result.api_calls:
-        scope_key = scope if call.agent in ("descriptor", "visual_format") else None
-        prompt_id = prompt_state.db_ids.get((call.agent, scope_key)) or prompt_state.db_ids.get((call.agent, None))
-        store_api_call(
-            conn, call_type, call.agent, call.model, prompt_id,
-            pred.ig_media_id,
-            call.input_tokens, call.output_tokens, None, call.latency_ms,
-            run_id,
-        )
-
-    return result, errors, matches
 
 
 _desc_cache: dict[tuple[str, str], str] = {}
@@ -416,11 +338,7 @@ def evaluate_result_and_store(
     run_id: int,
     call_type: str = "classification",
 ) -> tuple[list[ErrorCase], list[MatchRecord]]:
-    """Évalue un résultat déjà classifié et stocke en BDD.
-
-    Séparation de classify_and_store pour permettre la classification async
-    en batch suivie du stockage séquentiel.
-    """
+    """Évalue un résultat déjà classifié et stocke en BDD."""
     scope = post.media_product_type
     pred = result.prediction
 
