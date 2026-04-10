@@ -60,7 +60,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("-B", "--batch-size", type=int, default=30)
     parser.add_argument("--delta", type=float, default=0.02)
     parser.add_argument("--patience", type=int, default=3)
-    parser.add_argument("--eval-window", type=int, default=30)
+    parser.add_argument("--eval-window", type=int, default=60)
     parser.add_argument("--dry-run", action="store_true", help="Pas de rewrite (B0-on-dev)")
     parser.add_argument("--no-rollback", action="store_true", help="Ablation A5")
     parser.add_argument("--limit", type=int, default=None, help="Nombre de posts max")
@@ -224,6 +224,7 @@ async def run_simulation(args) -> int:
         cursor = 0
         consecutive_failures = 0
         rewrites_stopped = False
+        per_slot_failures: dict[tuple[str, str | None], int] = {}
 
         total = len(post_inputs)
         feed = sum(1 for post in post_inputs if post.media_product_type == "FEED")
@@ -356,7 +357,7 @@ async def run_simulation(args) -> int:
                 emit_telemetry(display)
 
                 if not args.dry_run and not rewrites_stopped and len(error_buffer) >= args.batch_size:
-                    target_agent, target_scope = pick_rewrite_target(error_buffer)
+                    target_agent, target_scope = pick_rewrite_target(error_buffer, per_slot_failures)
                     target_errors = get_target_errors(error_buffer, target_agent, target_scope)
 
                     if not target_errors:
@@ -434,15 +435,18 @@ async def run_simulation(args) -> int:
                             failed=True,
                         )
 
+                    rewrite_slot = (target_agent, target_scope)
                     if outcome.failed:
                         failed_rewrite_attempts += 1
                         consecutive_failures += 1
+                        per_slot_failures[rewrite_slot] = per_slot_failures.get(rewrite_slot, 0) + 1
                         display.add_event(f"REWRITE #{rewrite_count} FAILED")
                         error_buffer.clear()
                     else:
                         if outcome.promoted:
                             promoted_rewrite_count += 1
                             consecutive_failures = 0
+                            per_slot_failures[rewrite_slot] = 0
                             delta = (outcome.candidate_acc - outcome.incumbent_acc) * 100
                             display.add_event(
                                 f"REWRITE #{rewrite_count} PROMOTED "
@@ -451,6 +455,7 @@ async def run_simulation(args) -> int:
                         else:
                             rollback_rewrite_count += 1
                             consecutive_failures += 1
+                            per_slot_failures[rewrite_slot] = per_slot_failures.get(rewrite_slot, 0) + 1
                             delta = (outcome.candidate_acc - outcome.incumbent_acc) * 100
                             display.add_event(
                                 f"REWRITE #{rewrite_count} ROLLBACK "

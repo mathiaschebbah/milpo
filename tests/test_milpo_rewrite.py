@@ -47,16 +47,21 @@ class RewriteSelectionTests(unittest.TestCase):
 
         self.assertEqual([error.ig_media_id for error in filtered], [1])
 
-    def test_get_target_errors_groups_descriptor_cases_by_post(self) -> None:
+    def test_get_target_errors_returns_all_scope_errors_for_descriptor(self) -> None:
+        """Le descripteur reçoit toutes les erreurs du scope ciblé."""
         errors = [
             _error(ig_media_id=7, axis="category", prompt_scope=None, post_scope="REELS"),
             _error(ig_media_id=7, axis="strategy", prompt_scope=None, post_scope="REELS"),
             _error(ig_media_id=8, axis="category", prompt_scope=None, post_scope="REELS"),
+            _error(ig_media_id=9, axis="visual_format", prompt_scope="FEED", post_scope="FEED"),
         ]
 
         filtered = get_target_errors(errors, "descriptor", "REELS")
 
-        self.assertEqual([error.ig_media_id for error in filtered], [7, 7])
+        # Seules les erreurs REELS sont retournées (ig_media_id 7, 7, 8)
+        self.assertEqual([error.ig_media_id for error in filtered], [7, 7, 8])
+        # FEED errors excluded
+        self.assertNotIn(9, [e.ig_media_id for e in filtered])
 
 
 if __name__ == "__main__":

@@ -41,8 +41,16 @@ def _align_candidate_arms(
     return {aid: m[:min_len] for aid, m in non_empty.items()}
 
 
-def pick_rewrite_target(error_buffer: list[ErrorCase]) -> tuple[str, str | None]:
-    """Choisit (agent, scope) avec le plus d'erreurs dans le buffer."""
+def pick_rewrite_target(
+    error_buffer: list[ErrorCase],
+    per_slot_failures: dict[tuple[str, str | None], int] | None = None,
+    slot_cooldown: int = 2,
+) -> tuple[str, str | None]:
+    """Choisit (agent, scope) avec le plus d'erreurs dans le buffer.
+
+    per_slot_failures : compteur d'échecs consécutifs par slot.
+    slot_cooldown : nombre d'échecs avant de skip un slot.
+    """
     counts: Counter[tuple[str, str | None]] = Counter()
     grouped_by_post: dict[tuple[int, str], list[ErrorCase]] = defaultdict(list)
 
@@ -50,9 +58,18 @@ def pick_rewrite_target(error_buffer: list[ErrorCase]) -> tuple[str, str | None]
         counts[(error.axis, error.prompt_scope)] += 1
         grouped_by_post[(error.ig_media_id, error.post_scope)].append(error)
 
+    # Chaque post avec ≥1 erreur vote pour le descripteur (pondéré par nb d'erreurs)
     for (_, scope), grouped_errors in grouped_by_post.items():
-        if len(grouped_errors) >= 2:
-            counts[("descriptor", scope)] += len(grouped_errors)
+        counts[("descriptor", scope)] += len(grouped_errors)
+
+    # Skip les slots en cooldown (trop d'échecs consécutifs)
+    if per_slot_failures:
+        for slot, n_fails in per_slot_failures.items():
+            if n_fails >= slot_cooldown and slot in counts:
+                del counts[slot]
+
+    if not counts:
+        return error_buffer[0].axis, error_buffer[0].prompt_scope
 
     return counts.most_common(1)[0][0]
 
@@ -69,16 +86,10 @@ def get_target_errors(
             if error.axis == target_agent and error.prompt_scope == target_scope
         ]
 
-    grouped_by_post: dict[int, list[ErrorCase]] = defaultdict(list)
-    for error in error_buffer:
-        if error.post_scope == target_scope:
-            grouped_by_post[error.ig_media_id].append(error)
-
-    target_errors: list[ErrorCase] = []
-    for grouped_errors in grouped_by_post.values():
-        if len(grouped_errors) >= 2:
-            target_errors.extend(grouped_errors)
-    return target_errors
+    return [
+        error for error in error_buffer
+        if error.post_scope == target_scope
+    ]
 
 
 def _persist_protegi_artifacts(

@@ -80,6 +80,7 @@ def evaluate_result_and_store(
                 caption=post.caption,
                 desc_predicted=_get_label_description(conn, axis, predicted),
                 desc_expected=_get_label_description(conn, axis, expected),
+                confidence=result.confidences.get(axis, "unknown"),
             ))
 
     persist_pipeline_predictions(

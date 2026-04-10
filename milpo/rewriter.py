@@ -68,6 +68,7 @@ class ErrorCase:
     caption: str | None
     desc_predicted: str
     desc_expected: str
+    confidence: str = "unknown"
 
 
 def _format_error_batch(errors: list[ErrorCase]) -> str:
@@ -77,12 +78,12 @@ def _format_error_batch(errors: list[ErrorCase]) -> str:
         lines.append(f"### Erreur {i}")
         lines.append(f"- **Axe concerné** : `{e.axis}`")
         lines.append(f"- **Scope du post** : `{e.post_scope}`")
-        lines.append(f"- **Prédit** : `{e.predicted}`")
+        lines.append(f"- **Prédit** : `{e.predicted}` (confidence: {e.confidence})")
         lines.append(f"- **Attendu** : `{e.expected}`")
         lines.append(f"- **Caption** : {(e.caption or '(vide)')[:300]}")
         lines.append(f"- **Description label prédit** : {e.desc_predicted}")
         lines.append(f"- **Description label attendu** : {e.desc_expected}")
-        lines.append(f"- **Analyse du descripteur** :\n{e.features_json[:1500]}")
+        lines.append(f"- **Analyse du descripteur** :\n{e.features_json[:4000]}")
         lines.append("")
     return "\n".join(lines)
 

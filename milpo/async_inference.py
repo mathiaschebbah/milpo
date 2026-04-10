@@ -262,8 +262,10 @@ async def _async_classify_from_features(
     ])
 
     predicted_labels: dict[str, str] = {}
-    for axis, (label, _confidence, clf_log) in classifier_results:
+    confidences: dict[str, str] = {}
+    for axis, (label, confidence, clf_log) in classifier_results:
         predicted_labels[axis] = label
+        confidences[axis] = confidence
         api_calls.append(clf_log)
 
     prediction = build_post_prediction(
@@ -271,7 +273,7 @@ async def _async_classify_from_features(
         features=features,
         labels_by_axis=predicted_labels,
     )
-    return PipelineResult(prediction=prediction, api_calls=api_calls)
+    return PipelineResult(prediction=prediction, api_calls=api_calls, confidences=confidences)
 
 
 async def async_classify_post(
