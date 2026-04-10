@@ -41,6 +41,7 @@ class ContenuPrincipal(StrictBaseModel):
     pochettes_album: bool
     zoom_objet: bool
     photos_evenement: bool
+    chiffre_marquant_visible: bool  # un chiffre/stat domine visuellement la composition (gros, en premier plan)
 
 
 class AudioVideo(StrictBaseModel):
