@@ -248,7 +248,7 @@ async def run_simulation(args) -> int:
         display.n_by_scope = n_by_scope
         emit_telemetry(display)
 
-        batch_timeout = 240
+        post_timeout = 120
         with Live(display.build(), refresh_per_second=2, console=console, screen=True) as live:
             async def _with_heartbeat(coro, label="rewrite..."):
                 """Run a coroutine with periodic 2s heartbeat updates."""
@@ -281,27 +281,18 @@ async def run_simulation(args) -> int:
                     live.update(display.build())
                     emit_telemetry(display)
 
-                try:
-                    batch_results = await asyncio.wait_for(
-                        async_classify_batch(
-                            posts=micro_batch,
-                            prompts_by_scope=prompts_by_scope,
-                            labels_by_scope=labels_by_scope,
-                            max_concurrent_api=20,
-                            max_concurrent_posts=args.micro_batch,
-                            on_progress=_on_post_done,
-                        ),
-                        timeout=batch_timeout,
-                    )
-                except asyncio.TimeoutError:
-                    display.add_event(
-                        f"TIMEOUT batch {cursor}-{batch_end} ({batch_timeout}s) — skipped"
-                    )
-                    skipped_classification_posts += len(micro_batch)
-                    cursor = batch_end
-                    live.update(display.build())
-                    emit_telemetry(display)
-                    continue
+                batch_results = await async_classify_batch(
+                    posts=micro_batch,
+                    prompts_by_scope=prompts_by_scope,
+                    labels_by_scope=labels_by_scope,
+                    max_concurrent_api=20,
+                    max_concurrent_posts=args.micro_batch,
+                    on_progress=_on_post_done,
+                    per_post_timeout=post_timeout,
+                )
+                skipped_in_batch = len(micro_batch) - len(batch_results)
+                if skipped_in_batch:
+                    skipped_classification_posts += skipped_in_batch
 
                 results_by_id = {result.prediction.ig_media_id: result for result in batch_results}
                 batch_cursor = cursor

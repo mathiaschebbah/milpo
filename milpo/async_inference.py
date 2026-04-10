@@ -383,8 +383,9 @@ async def async_classify_batch(
     max_concurrent_api: int = 20,
     max_concurrent_posts: int = 10,
     on_progress: Any = None,
+    per_post_timeout: float = 120.0,
 ) -> list[PipelineResult]:
-    """Classifie un batch de posts en parallèle."""
+    """Classifie un batch de posts en parallèle (best effort per-post)."""
     client = get_async_client()
     semaphore = asyncio.Semaphore(max_concurrent_api)
     post_semaphore = asyncio.Semaphore(max_concurrent_posts)
@@ -401,15 +402,23 @@ async def async_classify_batch(
             labels = labels_by_scope[scope]
 
             try:
-                results[idx] = await async_classify_post(
-                    post=post,
-                    prompts=prompts,
-                    category_labels=labels["category"],
-                    visual_format_labels=labels["visual_format"],
-                    strategy_labels=labels["strategy"],
-                    client=client,
-                    semaphore=semaphore,
+                results[idx] = await asyncio.wait_for(
+                    async_classify_post(
+                        post=post,
+                        prompts=prompts,
+                        category_labels=labels["category"],
+                        visual_format_labels=labels["visual_format"],
+                        strategy_labels=labels["strategy"],
+                        client=client,
+                        semaphore=semaphore,
+                    ),
+                    timeout=per_post_timeout,
                 )
+            except asyncio.TimeoutError:
+                error_count += 1
+                log.warning("Post %s TIMEOUT (%ds)", post.ig_media_id, per_post_timeout)
+                if _on_api_call:
+                    _on_api_call("timeout", "—", int(per_post_timeout * 1000), 0, 0, "error")
             except Exception as exc:
                 error_count += 1
                 log.error("Post %s échoué: %s", post.ig_media_id, exc)
