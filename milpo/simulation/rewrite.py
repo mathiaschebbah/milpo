@@ -100,11 +100,11 @@ def _persist_protegi_artifacts(
 
     # Query max version in DB to avoid collisions after a timed-out rewrite
     row = conn.execute(
-        "SELECT COALESCE(MAX(version), 0) FROM prompt_versions "
+        "SELECT COALESCE(MAX(version), 0) AS max_v FROM prompt_versions "
         "WHERE simulation_run_id = %s AND agent = %s AND scope IS NOT DISTINCT FROM %s",
         (run_id, target_agent, target_scope),
     ).fetchone()
-    next_version = max(row[0] + 1, incumbent_version + 1)
+    next_version = max(row["max_v"] + 1, incumbent_version + 1)
     edit_arms: list[ProtegiArm] = []
     for index, candidate in enumerate(step_result.edit.candidates):
         edit_version = next_version + index
