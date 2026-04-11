@@ -26,17 +26,21 @@ def persist_pipeline_predictions(
     store_descriptor: bool = True,
 ) -> None:
     pred = result.prediction
+    confidences = getattr(result, "confidences", {}) or {}
     for axis in ("category", "visual_format", "strategy"):
         prompt_id = resolve_prompt_id(prompt_ids, axis, scope)
         if prompt_id is None:
             continue
+        raw: dict = {"confidence": confidences.get(axis)}
+        if axis == "visual_format":
+            raw["text"] = pred.features
         store_prediction(
             conn,
             post_id,
             axis,
             prompt_id,
             getattr(pred, axis),
-            raw_response={"text": pred.features} if axis == "visual_format" else None,
+            raw_response=raw,
             simulation_run_id=run_id,
         )
 
