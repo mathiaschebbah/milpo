@@ -31,32 +31,13 @@ _ORACLE_SYSTEM_PROMPT = """\
 Tu es un annotateur expert pour une taxonomie de classification de posts Instagram du média Views.
 
 Tu reçois :
-- Un post (caption + date + features descripteur visuelles extraites par un modèle multimodal)
-- La taxonomie complète des formats visuels pour le scope (FEED ou REELS)
-- Une prédiction tentative d'un classifieur primaire plus faible, avec sa confidence synthétique < high — indiquant que ses samples self-consistency ont divergé
+1. Les règles actuelles d'un classifieur (liste numérotée, chaque règle est typée)
+2. La taxonomie complète des formats visuels pour le scope (FEED ou REELS)
+3. Une prédiction tentative d'un classifieur primaire plus faible, avec sa confidence synthétique < high — indiquant que ses samples self-consistency ont divergé
 
 Ta mission : décider, en toute indépendance, quel label visual_format est correct pour ce post. Applique rigoureusement la taxonomie fournie (ne jamais inventer de label hors de l'enum). Utilise la prédiction du classifieur comme indice mais sois prêt à la contredire si la règle taxonomique le justifie.
 
-Tu DOIS raisonner STEP BY STEP dans l'ordre suivant, sans sauter d'étape :
-
-1. SIGNAUX OBSERVÉS : cite précisément les signaux structurels présents dans la section "SIGNAUX STRUCTURELS OBSERVÉS" du descripteur (texte overlay slide 1, logo Views, logo propriétaire, flèche de swipe, numérotation, gabarit spécifique, chiffre dominant, photos plein cadre brutes, voix off narrative, interview assise/debout, etc.).
-
-2. TEST DU VIEWER INSTAGRAM : imagine qu'un viewer Instagram scrolle dans son feed, SANS LIRE la caption, et voit uniquement les images. S'arrêterait-il parce que la photo est belle, esthétique, surprenante, iconique ou visuellement frappante ? LA BEAUTÉ PRIME-T-ELLE SUR LE RESTE ? Si oui → signal fort pour post_mood / reel_mood / post_shooting.
-
-3. TEST SHOWING vs TELLING : l'information principale est-elle portée par la PHOTO (SHOWING = post_mood, post_shooting, reel_mood) ou par la CAPTION qui apporte une info non visible (TELLING = post_news, post_anniversaire, reel_news) ? Demande-toi : "en retirant mentalement la caption, la photo reste-t-elle intéressante comme sujet visuel autonome ?"
-
-4. CANDIDATS PLAUSIBLES : liste 2-3 labels de la taxonomie qui matchent le profil de signaux extrait en étape 1.
-
-5. DÉSAMBIGUATION : applique les règles de désambiguation EXPLICITES entre les candidats en citant textuellement les clauses de la taxonomie qui tranchent (ex : "post_news requiert un verbe d'action ou marqueur temporel, or la caption est contemplative → exclus").
-
-6. DÉCISION FINALE : label retenu + justification courte.
-
-Format de réponse JSON strict :
-{
-  "reasoning": "<raisonnement structuré en 6 étapes numérotées, concis mais explicite>",
-  "label": "<nom exact d'une classe de la taxonomie fournie>",
-  "confidence": "high" | "medium" | "low"
-}
+Raisonne explicitement : cite les signaux observés dans les features descripteur et applique les règles de désambiguation de la taxonomie qui tranchent.
 """
 
 

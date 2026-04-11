@@ -23,10 +23,18 @@ else:
     LLM_API_KEY = OPENROUTER_API_KEY
     LLM_BASE_URL = "https://openrouter.ai/api/v1"
 
-# Modèles — tout sur Gemini 2.5 Flash Lite
+# Modèles — tout sur Gemini 3.1 Flash Lite par défaut
 MODEL_DESCRIPTOR_FEED = os.environ.get("MILPO_MODEL_DESCRIPTOR", "gemini-3.1-flash-lite-preview")
 MODEL_DESCRIPTOR_REELS = os.environ.get("MILPO_MODEL_DESCRIPTOR", "gemini-3.1-flash-lite-preview")
 MODEL_CLASSIFIER = os.environ.get("MILPO_MODEL_CLASSIFIER", "gemini-3.1-flash-lite-preview")
+
+# Override ciblé : axe le plus difficile (42 classes long-tail, règles
+# subtiles). Permet d'utiliser un modèle plus capable uniquement pour
+# visual_format tout en gardant Flash Lite pour category et strategy.
+# Si non défini, fallback sur MODEL_CLASSIFIER.
+MODEL_CLASSIFIER_VISUAL_FORMAT = os.environ.get(
+    "MILPO_MODEL_CLASSIFIER_VISUAL_FORMAT", MODEL_CLASSIFIER
+)
 
 MODEL_REWRITER = os.environ.get("HILPO_MODEL_REWRITER", "gpt-5.4")
 

@@ -385,9 +385,17 @@ async def _async_classify_from_features(
     )
 
     async def _classify(axis: str, labels: list[str], instructions: str, descriptions: str):
+        # Routage par axe : visual_format peut utiliser un modèle plus capable
+        # (override via MILPO_MODEL_CLASSIFIER_VISUAL_FORMAT) parce que c'est
+        # l'axe le plus difficile (42 classes long-tail, règles subtiles).
+        # category et strategy restent sur MODEL_CLASSIFIER (Flash Lite).
+        from milpo.config import MODEL_CLASSIFIER_VISUAL_FORMAT
+        model_for_axis = (
+            MODEL_CLASSIFIER_VISUAL_FORMAT if axis == "visual_format" else MODEL_CLASSIFIER
+        )
         label, conf, reasoning, logs, extra = await async_call_classifier_self_consistent(
             client,
-            MODEL_CLASSIFIER,
+            model_for_axis,
             axis,
             labels,
             features_json,
@@ -406,7 +414,7 @@ async def _async_classify_from_features(
         total_ms = sum(l.latency_ms for l in logs)
         combined_log = ApiCallLog(
             agent=axis,
-            model=MODEL_CLASSIFIER,
+            model=model_for_axis,
             input_tokens=total_in,
             output_tokens=total_out,
             latency_ms=total_ms,

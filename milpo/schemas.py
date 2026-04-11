@@ -117,25 +117,9 @@ def build_classifier_response_schema(labels: list[str]) -> dict:
             "reasoning": {
                 "type": "string",
                 "description": (
-                    "Raisonnement STRUCTURÉ ÉTAPE PAR ÉTAPE avant de décider du label. "
-                    "Tu DOIS suivre cette séquence numérotée dans ta réponse :\n"
-                    "1. SIGNAUX OBSERVÉS : cite les signaux structurels présents dans "
-                    "la section 'SIGNAUX STRUCTURELS OBSERVÉS' du descripteur "
-                    "(texte overlay slide 1, logo Views, flèche, gabarit spécifique, "
-                    "numérotation, chiffre dominant, photos brutes, etc.).\n"
-                    "2. TEST DU VIEWER INSTAGRAM : imagine un viewer qui scrolle sans "
-                    "lire la caption. S'arrête-t-il pour la beauté/esthétique de la "
-                    "photo ? La beauté prime-t-elle sur le reste ? Si oui, c'est un "
-                    "signal fort pour post_mood (ou post_shooting).\n"
-                    "3. TEST SHOWING vs TELLING : l'information principale est-elle "
-                    "dans la photo (SHOWING → mood/shooting) ou dans la caption "
-                    "(TELLING → news/anniversaire) ?\n"
-                    "4. CANDIDATS POSSIBLES : liste 2-3 labels de la taxonomie qui "
-                    "matchent le profil de signaux.\n"
-                    "5. DÉSAMBIGUATION : applique les règles de désambiguation "
-                    "explicites entre les candidats (citer la règle textuellement).\n"
-                    "6. DÉCISION FINALE : label retenu + raison courte.\n"
-                    "Format attendu : numéroter les 6 étapes, être concis mais explicite."
+                    "Raisonnement explicite avant de décider du label. "
+                    "Cite les signaux observés dans les features descripteur "
+                    "et applique les règles de désambiguation de la taxonomie."
                 ),
             },
             "label": {
