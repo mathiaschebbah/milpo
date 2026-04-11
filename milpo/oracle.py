@@ -174,13 +174,44 @@ async def async_call_oracle_visual_format(
         classifier_samples=classifier_samples,
     )
 
+    # Tool schema : force structured output via tool_use (évite les erreurs
+    # de parsing JSON qu'on observait quand le LLM produisait du plain text
+    # contenant des guillemets non échappés dans reasoning).
+    classify_tool = {
+        "name": "classify_visual_format",
+        "description": "Rend le verdict final après raisonnement en 6 étapes.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "reasoning": {
+                    "type": "string",
+                    "description": (
+                        "Raisonnement structuré en 6 étapes numérotées. "
+                        "N'inclus PAS de guillemets imbriqués non échappés."
+                    ),
+                },
+                "label": {
+                    "type": "string",
+                    "enum": labels,
+                },
+                "confidence": {
+                    "type": "string",
+                    "enum": ["high", "medium", "low"],
+                },
+            },
+            "required": ["reasoning", "label", "confidence"],
+        },
+    }
+
     t0 = time.monotonic()
     try:
         response = await client.messages.create(
             model=MODEL_ORACLE,
-            max_tokens=1024,
+            max_tokens=12000,
             system=_ORACLE_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_msg}],
+            tools=[classify_tool],
+            tool_choice={"type": "tool", "name": "classify_visual_format"},
         )
     except Exception as exc:
         log.warning("Oracle call failed: %s", exc)
@@ -196,25 +227,28 @@ async def async_call_oracle_visual_format(
         )
 
     latency_ms = int((time.monotonic() - t0) * 1000)
-    text = response.content[0].text.strip() if response.content else ""
-    if text.startswith("```"):
-        lines = text.split("\n")
-        text = "\n".join(line for line in lines if not line.startswith("```"))
 
-    try:
-        parsed = json.loads(text)
-    except json.JSONDecodeError as exc:
-        log.warning("Oracle JSON parse failed: %s — raw=%r", exc, text[:300])
+    # Extraction du tool_use block depuis la réponse Anthropic
+    tool_use_block = None
+    for block in response.content:
+        if block.type == "tool_use" and block.name == "classify_visual_format":
+            tool_use_block = block
+            break
+
+    if tool_use_block is None:
+        log.warning("Oracle ne retourne pas de tool_use block — fallback classifier")
         return OracleVerdict(
             label=classifier_prediction,
             confidence=classifier_confidence,
-            reasoning=f"[oracle parse error: {exc}] raw={text[:200]}",
+            reasoning="[oracle no tool_use in response]",
             model=MODEL_ORACLE,
             latency_ms=latency_ms,
             input_tokens=response.usage.input_tokens if response.usage else 0,
             output_tokens=response.usage.output_tokens if response.usage else 0,
-            error=f"parse: {exc}",
+            error="no_tool_use",
         )
+
+    parsed = tool_use_block.input
 
     oracle_label = parsed.get("label")
     if oracle_label not in labels:
