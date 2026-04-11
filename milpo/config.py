@@ -43,6 +43,13 @@ MODEL_CRITIC = os.environ.get("HILPO_MODEL_CRITIC", MODEL_REWRITER)
 MODEL_EDITOR = os.environ.get("HILPO_MODEL_EDITOR", MODEL_REWRITER)
 MODEL_PARAPHRASER = os.environ.get("HILPO_MODEL_PARAPHRASER", MODEL_REWRITER)
 
+# Oracle cascade — Claude Sonnet 4.6 appelé sur les prédictions classifieur
+# avec confidence synthétique medium/low (vote self-consistency <k/k).
+# Désactivé automatiquement si ANTHROPIC_API_KEY n'est pas set.
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+MODEL_ORACLE = os.environ.get("MILPO_MODEL_ORACLE", "claude-sonnet-4-6")
+ORACLE_ENABLED = bool(ANTHROPIC_API_KEY)
+
 # GCS
 GCS_SIGNING_SA_EMAIL = os.environ.get("HILPO_GCS_SIGNING_SA_EMAIL", "")
 

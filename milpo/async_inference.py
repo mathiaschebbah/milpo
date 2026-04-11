@@ -252,7 +252,8 @@ async def async_call_classifier_self_consistent(
     k: int = 3,
     temperature: float = 0.3,
     reasoning_effort: str = "medium",
-) -> tuple[str, str, str, list[ApiCallLog]]:
+    enable_oracle: bool = True,
+) -> tuple[str, str, str, list[ApiCallLog], dict]:
     """Self-consistency : appelle le classifieur k fois à T>0 et vote majorité.
 
     Contourne la sur-confiance systémique du classifieur (finding empirique
@@ -260,13 +261,22 @@ async def async_call_classifier_self_consistent(
     signal de calibration réel à partir de la divergence inter-samples
     (Wang et al. 2023, "Self-Consistency Improves Chain of Thought Reasoning").
 
-    Retourne (label_majoritaire, confidence_synthétique, reasoning_concat,
-    logs). La confidence synthétique est dérivée du vote :
-        - k/k d'accord → "high"
-        - (k-1)/k d'accord → "medium"
-        - ≤(k-2)/k d'accord → "low"
+    Sur l'axe visual_format, si la confidence synthétique est medium ou low
+    ET enable_oracle est True ET ANTHROPIC_API_KEY est configuré, un appel
+    oracle (Claude Sonnet 4.6) est effectué. Son verdict REMPLACE le
+    majority label du classifieur (heuristique : oracle toujours raison
+    sur le small model sur les cas où les samples divergent).
+
+    Retourne (final_label, synthetic_confidence, reasoning_concat, logs,
+    extra_info). extra_info est un dict contenant :
+        - samples: list[dict{label, reasoning}]
+        - majority_label: label du vote avant oracle
+        - oracle_info: None ou dict avec les détails du verdict oracle
     """
     from collections import Counter
+
+    from milpo.config import ORACLE_ENABLED
+    from milpo.oracle import async_call_oracle_visual_format
 
     async def _one_sample(sample_idx: int):
         return await async_call_classifier(
@@ -299,12 +309,59 @@ async def async_call_classifier_self_consistent(
     else:
         synthetic_confidence = "low"
 
+    samples_structured = [
+        {"label": labels_samples[i], "reasoning": reasonings_samples[i]}
+        for i in range(k)
+    ]
+
     reasoning_concat = "\n\n---\n\n".join(
         f"[sample {i + 1}/{k} → {labels_samples[i]}]\n{reasonings_samples[i]}"
         for i in range(k)
     )
 
-    return majority_label, synthetic_confidence, reasoning_concat, logs
+    final_label = majority_label
+    oracle_info: dict | None = None
+
+    # Cascade oracle : uniquement pour visual_format et seulement si vote incertain
+    if (
+        enable_oracle
+        and ORACLE_ENABLED
+        and axis == "visual_format"
+        and synthetic_confidence in ("medium", "low")
+    ):
+        verdict = await async_call_oracle_visual_format(
+            features_json=features_json,
+            caption=caption,
+            descriptions_taxonomiques=descriptions_taxonomiques,
+            labels=labels,
+            posted_at=posted_at,
+            classifier_prediction=majority_label,
+            classifier_confidence=synthetic_confidence,
+            classifier_samples=samples_structured,
+        )
+        oracle_info = {
+            "triggered": True,
+            "label": verdict.label,
+            "confidence": verdict.confidence,
+            "reasoning": verdict.reasoning,
+            "model": verdict.model,
+            "latency_ms": verdict.latency_ms,
+            "input_tokens": verdict.input_tokens,
+            "output_tokens": verdict.output_tokens,
+            "error": verdict.error,
+        }
+        # Heuristique : oracle verdict remplace le classifier majority
+        # (sauf si l'oracle a erroré, auquel cas verdict.label = majority
+        # label déjà — fallback sûr géré par oracle.py)
+        final_label = verdict.label
+
+    extra_info = {
+        "samples": samples_structured,
+        "majority_label": majority_label,
+        "oracle_info": oracle_info,
+    }
+
+    return final_label, synthetic_confidence, reasoning_concat, logs, extra_info
 
 
 async def _async_classify_from_features(
@@ -328,7 +385,7 @@ async def _async_classify_from_features(
     )
 
     async def _classify(axis: str, labels: list[str], instructions: str, descriptions: str):
-        label, conf, reasoning, logs = await async_call_classifier_self_consistent(
+        label, conf, reasoning, logs, extra = await async_call_classifier_self_consistent(
             client,
             MODEL_CLASSIFIER,
             axis,
@@ -343,7 +400,7 @@ async def _async_classify_from_features(
             temperature=0.3,
             reasoning_effort="medium",
         )
-        # Un log agrégé représentant les k appels (sum des tokens + somme latence)
+        # Un log agrégé représentant les k appels classifieur (sum des tokens)
         total_in = sum(l.input_tokens for l in logs)
         total_out = sum(l.output_tokens for l in logs)
         total_ms = sum(l.latency_ms for l in logs)
@@ -354,7 +411,7 @@ async def _async_classify_from_features(
             output_tokens=total_out,
             latency_ms=total_ms,
         )
-        return axis, (label, conf, reasoning, combined_log)
+        return axis, (label, conf, reasoning, combined_log, extra)
 
     classifier_results = await asyncio.gather(*[
         _classify(axis, labels, instructions, descriptions)
@@ -364,10 +421,12 @@ async def _async_classify_from_features(
     predicted_labels: dict[str, str] = {}
     confidences: dict[str, str] = {}
     reasonings: dict[str, str] = {}
-    for axis, (label, confidence, reasoning, clf_log) in classifier_results:
+    extras: dict[str, dict] = {}
+    for axis, (label, confidence, reasoning, clf_log, extra) in classifier_results:
         predicted_labels[axis] = label
         confidences[axis] = confidence
         reasonings[axis] = reasoning
+        extras[axis] = extra
         api_calls.append(clf_log)
 
     prediction = build_post_prediction(
@@ -380,6 +439,7 @@ async def _async_classify_from_features(
         api_calls=api_calls,
         confidences=confidences,
         reasonings=reasonings,
+        extras=extras,
     )
 
 
