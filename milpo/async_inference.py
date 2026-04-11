@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from datetime import datetime
 from typing import Any
 
 from openai import AsyncOpenAI
@@ -41,7 +42,7 @@ def get_async_client() -> AsyncOpenAI:
     return AsyncOpenAI(
         base_url=LLM_BASE_URL,
         api_key=LLM_API_KEY,
-        timeout=20.0,
+        timeout=60.0,
     )
 
 
@@ -122,6 +123,7 @@ async def async_call_classifier(
     instructions: str,
     descriptions_taxonomiques: str,
     semaphore: asyncio.Semaphore,
+    posted_at: datetime | None = None,
 ) -> tuple[str, str, ApiCallLog]:
     """Appelle un classifieur via tool calling forcé."""
     messages = build_classifier_messages(
@@ -129,6 +131,7 @@ async def async_call_classifier(
         caption,
         instructions,
         descriptions_taxonomiques,
+        posted_at=posted_at,
     )
     tool = build_classifier_tool(axis, labels)
     tool_name = tool["function"]["name"]
@@ -144,7 +147,7 @@ async def async_call_classifier(
                     tools=[tool],
                     tool_choice="auto",
                     temperature=0.1,
-                    reasoning_effort="low",
+                    reasoning_effort="high",
                 )
             except Exception as exc:
                 log.warning("Classifier %s échoué (attempt %d): %s", axis, attempt + 1, exc)
@@ -255,6 +258,7 @@ async def _async_classify_from_features(
             instructions,
             descriptions,
             semaphore,
+            posted_at=post.posted_at,
         )
 
     classifier_results = await asyncio.gather(*[
@@ -357,6 +361,7 @@ async def async_classify_target_only(
         target_instructions,
         target_descriptions,
         semaphore,
+        posted_at=post.posted_at,
     )
     return label, clf_log
 
@@ -368,7 +373,7 @@ async def async_classify_batch(
     max_concurrent_api: int = 20,
     max_concurrent_posts: int = 10,
     on_progress: Any = None,
-    per_post_timeout: float = 120.0,
+    per_post_timeout: float = 240.0,
 ) -> list[PipelineResult]:
     """Classifie un batch de posts en parallèle (best effort per-post)."""
     client = get_async_client()

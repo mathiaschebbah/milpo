@@ -65,7 +65,8 @@ async def run_baseline(args) -> int:
         """
         SELECT p.ig_media_id, p.caption,
                p.media_type::text AS media_type,
-               p.media_product_type::text AS media_product_type
+               p.media_product_type::text AS media_product_type,
+               p.timestamp AS posted_at
         FROM sample_posts sp
         JOIN posts p ON p.ig_media_id = sp.ig_media_id
         WHERE sp.split = 'test'
@@ -110,6 +111,7 @@ async def run_baseline(args) -> int:
             media_urls=[url for url, _ in signed],
             media_types=[media_type for _, media_type in signed],
             caption=post["caption"],
+            posted_at=post.get("posted_at"),
         ))
 
     feed = sum(1 for post in post_inputs if post.media_product_type == "FEED")

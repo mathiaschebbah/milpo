@@ -18,6 +18,7 @@ def load_dev_posts(
             p.caption,
             p.media_type::text AS media_type,
             p.media_product_type::text AS media_product_type,
+            p.timestamp AS posted_at,
             sp.presentation_order
         FROM sample_posts sp
         JOIN posts p ON p.ig_media_id = sp.ig_media_id

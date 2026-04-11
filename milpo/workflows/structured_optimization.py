@@ -217,6 +217,7 @@ async def run_structured_optimization(args) -> int:
                 media_urls=[url for url, _ in signed],
                 media_types=[mt for _, mt in signed],
                 caption=post["caption"],
+                posted_at=post.get("posted_at"),
             )
             all_post_inputs[post["ig_media_id"]] = pi
 

@@ -224,6 +224,7 @@ async def run_simulation(args) -> int:
                 media_urls=[url for url, _ in signed],
                 media_types=[media_type for _, media_type in signed],
                 caption=post["caption"],
+                posted_at=post.get("posted_at"),
             ))
 
         post_by_id = {p.ig_media_id: p for p in post_inputs}

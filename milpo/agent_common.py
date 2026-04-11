@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from milpo.schemas import ClassifierDecision
 
 
@@ -48,6 +50,7 @@ def build_classifier_messages(
     caption: str | None,
     instructions: str,
     descriptions_taxonomiques: str,
+    posted_at: datetime | None = None,
 ) -> list[dict]:
     """Construit les messages pour un classifieur text-only."""
     system = (
@@ -56,9 +59,14 @@ def build_classifier_messages(
         f"{descriptions_taxonomiques}"
     )
 
+    date_block = ""
+    if posted_at is not None:
+        date_block = f"## Date de publication\n\n{posted_at.date().isoformat()}\n\n"
+
     user_text = (
         f"## Analyse du post\n\n"
         f"{features_json}\n\n"
+        f"{date_block}"
         f"## Caption du post\n\n"
         f"{caption or '(pas de caption)'}"
     )

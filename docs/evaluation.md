@@ -341,3 +341,47 @@ Ce découpage en 3 LLMs distincts est la **différence centrale avec le rewriter
 - [ ] Abstract ≤ 250 mots avec claim + résultat clé
 - [ ] Bibliographie ≥ 15 références académiques
 - [ ] Code reproductible (repo public, seeds fixées)
+
+## Observations empiriques
+
+### 2026-04-11 — Biais de saillance textuelle dans les descriptions taxonomiques
+
+**Contexte.** Itérations sur les descriptions de `post_en_savoir_plus` / `post_en_savoir_plus_selection` pour corriger des annotations où le critère discriminant posé par l'annotateur (« présence d'une flèche d'incitation au swipe sur la slide 1 ») n'était pas respecté par le classifieur. Runs 66 → 67 sur split test (437 posts).
+
+**Observation.** Une description de classe qui combine un signal structurel obligatoire (« *la flèche est obligatoire* ») avec des signaux sémantiques descriptifs (« *approfondit un sujet par une lecture progressive*, contenu éditorial dense, reportage ») est mal appliquée par le classifieur : celui-ci match sur les signaux sémantiques, pas sur le signal structurel.
+
+**Preuve.** Audit des 4 faux positifs de `post_en_savoir_plus` au run 67 (3× `post_article`, 1× `post_news`) :
+
+| Post | Mention de « flèche » dans le descripteur | Termes matchés |
+|---|---|---|
+| Lena Situations / Balmain | aucune | « progression éditoriale : il commence par... puis plonge... » |
+| Segpa (film) | aucune | « structure éditoriale **approfondie** » |
+| Oscars 2024 sexisme | aucune | « structure éditoriale **approfondie** » |
+| Histoire terre battue | aucune | « progression éditoriale structurée » |
+
+Les 4 descripteurs ne mentionnent jamais de flèche. Le descripteur n'hallucine pas — il voit ce qui est là. Le classifieur extrait des mots-clés sémantiques (`approfondi`, `éditorial`, `progression`) qui apparaissent fréquemment dans les features descripteur de n'importe quel carousel éditorial long, alors que la flèche est un détail ponctuel noyé dans plusieurs paragraphes de texte.
+
+**Interprétation.** Quand une description de classe contient N signaux de nature différente (structurel + sémantique), le LLM classifieur utilise le signal qui apparaît le plus fréquemment dans son input, pas celui que l'annotateur considère comme le plus discriminant. Écrire « *signal X est obligatoire* » dans le prompt n'est pas suffisant : si la description énumère ensuite d'autres adjectifs sémantiques, ils deviennent des chemins alternatifs de matching.
+
+**Conséquence méthodologique.** Pour rendre un signal structurel *effectivement* discriminant, il faut retirer de la description tout autre signal sémantique qui pourrait servir de match alternatif — ne pas simplement dire « obligatoire ». La v3 des descriptions `post_en_savoir_plus` / `post_en_savoir_plus_selection` (fix post-run 67) adopte ce principe : seule la flèche est mentionnée comme signal, avec une clause négative explicite (« sans cette mention, il ne s'agit jamais de cette classe, indépendamment du contenu »).
+
+**À suivre.** Ce pattern n'est probablement pas spécifique à `post_en_savoir_plus` — il est à rechercher sur toutes les classes dont la description mélange un signal obligatoire et des signaux sémantiques décoratifs.
+
+**Second cas observé (run 68 → run 69) : `post_serie_mood_texte`.** Même pattern mais d'origine différente : la description en BDD disait *« carousel de plusieurs slides avec le **même template** »*, alors que la réalité annotée est un format **asymétrique** (slide 1 avec titre overlay, slides 2+ sans texte). Conséquence : au run 68, cette classe absorbait 8 `post_selection` + 2 `post_article` en faux positifs parce que le mot « même template » matchait exactement ce qui définit `post_selection` (template Views uniforme sur chaque slide). Fix : réécriture avec discriminant structurel explicite (asymétrie slide 1 vs slides 2+), clause négative sur le vocabulaire parasite (« gabarit », « template », « mood »), et trois règles de désambiguation explicites (vs `post_selection`, `post_mood`, `post_article`). Ce second cas confirme que le biais de saillance textuelle est un phénomène **reproductible** à traquer sur toutes les classes dont la description a été écrite sans audit empirique.
+
+### 2026-04-11 — Variance inter-run du même ordre que les gains ciblés
+
+**Contexte.** Trois runs consécutifs sur le split test (63 → 66 → 67), chacun séparé par une édition taxonomique ciblée sur 1 à 4 classes. Pipeline identique, temperature=0, modèle inchangé.
+
+**Observation.** Des classes **non touchées** par les édits bougent de ±3 à ±10 points de recall entre deux runs. Exemples au run 67 par rapport au run 66, alors qu'aucune édition ne les concernait :
+- `post_mood` : 92.0% → 85.0% (-7pp, 8 posts perdus vers wrap_up / shooting / coulisses / retour_en_images)
+- `post_serie_mood_texte` : 33% → 67% → 67% sur petit n=6
+
+**Interprétation.** À n=432 avec un signal concentré sur 4-10 classes par édition, le gain ciblé d'une intervention (+3 à +5 points sur une classe, soit ~+0.5 à +1 point global) est du même ordre que la variance inter-run de la pipeline. Cette variance résiduelle vient du LLM classifieur (non parfaitement déterministe malgré temperature=0) et du fait qu'une édition taxonomique change le contexte global vu par toutes les classes, pas seulement celle éditée.
+
+**Conséquence méthodologique.** Mesurer l'effet d'une édition isolée sur l'accuracy globale n'est pas fiable à n=432. Trois stratégies possibles :
+1. Agréger 3-5 édits taxo avant de relancer un run, pour que le gain cumulé dépasse la variance
+2. Faire k runs par configuration et moyenner (multiplie le coût par k)
+3. Mesurer l'effet localement sur la classe ciblée (où le gain attendu est typiquement +20 à +80 points) plutôt que sur l'accuracy globale
+
+La méthode (1) est la plus pragmatique compte tenu du budget. La méthode (3) est complémentaire : même si l'accuracy globale bouge dans le bruit, la matrice de confusion par classe reste interprétable.

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from openai import OpenAI
 
@@ -42,6 +43,7 @@ class PostInput:
     media_urls: list[str]
     media_types: list[str]
     caption: str | None
+    posted_at: datetime | None = None
 
 
 @dataclass
