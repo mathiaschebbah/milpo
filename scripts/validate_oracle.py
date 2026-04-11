@@ -26,6 +26,10 @@ import time
 from pathlib import Path
 from typing import Any
 
+# Force line-buffered stdout pour que les prints apparaissent en temps réel
+# quand le script est piped dans tee
+sys.stdout.reconfigure(line_buffering=True)
+
 from anthropic import Anthropic
 from dotenv import load_dotenv
 
