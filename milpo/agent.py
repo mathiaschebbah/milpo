@@ -131,7 +131,7 @@ def call_classifier(
                     f"Classifier {axis}: nom de tool inattendu '{tool_call.function.name}'"
                 )
 
-            label, confidence = parse_classifier_arguments(
+            label, confidence, reasoning = parse_classifier_arguments(
                 tool_call.function.arguments,
                 axis,
                 labels,
@@ -143,6 +143,7 @@ def call_classifier(
                 "output_tokens": usage.completion_tokens if usage else 0,
                 "latency_ms": latency_ms,
                 "model": model,
+                "reasoning": reasoning,
             }
         except Exception as exc:
             last_error = exc

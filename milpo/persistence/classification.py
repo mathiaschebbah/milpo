@@ -27,11 +27,15 @@ def persist_pipeline_predictions(
 ) -> None:
     pred = result.prediction
     confidences = getattr(result, "confidences", {}) or {}
+    reasonings = getattr(result, "reasonings", {}) or {}
     for axis in ("category", "visual_format", "strategy"):
         prompt_id = resolve_prompt_id(prompt_ids, axis, scope)
         if prompt_id is None:
             continue
-        raw: dict = {"confidence": confidences.get(axis)}
+        raw: dict = {
+            "confidence": confidences.get(axis),
+            "reasoning": reasonings.get(axis),
+        }
         if axis == "visual_format":
             raw["text"] = pred.features
         store_prediction(

@@ -42,7 +42,7 @@ def get_async_client() -> AsyncOpenAI:
     return AsyncOpenAI(
         base_url=LLM_BASE_URL,
         api_key=LLM_API_KEY,
-        timeout=60.0,
+        timeout=120.0,
     )
 
 
@@ -124,8 +124,19 @@ async def async_call_classifier(
     descriptions_taxonomiques: str,
     semaphore: asyncio.Semaphore,
     posted_at: datetime | None = None,
-) -> tuple[str, str, ApiCallLog]:
-    """Appelle un classifieur via tool calling forcé."""
+    temperature: float = 0.1,
+    reasoning_effort: str = "high",
+) -> tuple[str, str, str, ApiCallLog]:
+    """Appelle un classifieur via tool calling forcé.
+
+    Retourne (label, confidence, reasoning, log). Le reasoning est le
+    chain-of-thought structuré émis par le classifieur avant son label
+    (Wei et al. 2022, forcé par l'ordre des champs dans le schéma tool).
+
+    temperature et reasoning_effort sont paramétrables pour supporter
+    la self-consistency (T > 0 + reasoning medium) et les modes
+    déterministes (T = 0.1 + reasoning high).
+    """
     messages = build_classifier_messages(
         features_json,
         caption,
@@ -146,8 +157,8 @@ async def async_call_classifier(
                     messages=messages,
                     tools=[tool],
                     tool_choice="auto",
-                    temperature=0.1,
-                    reasoning_effort="high",
+                    temperature=temperature,
+                    reasoning_effort=reasoning_effort,
                 )
             except Exception as exc:
                 log.warning("Classifier %s échoué (attempt %d): %s", axis, attempt + 1, exc)
@@ -193,7 +204,7 @@ async def async_call_classifier(
             )
 
         try:
-            label, confidence = parse_classifier_arguments(
+            label, confidence, reasoning = parse_classifier_arguments(
                 tool_call.function.arguments,
                 axis,
                 labels,
@@ -216,7 +227,7 @@ async def async_call_classifier(
         out_tok = usage.completion_tokens if usage else 0
         if _on_api_call:
             _on_api_call(axis, model, latency_ms, in_tok, out_tok, "ok")
-        return label, confidence, ApiCallLog(
+        return label, confidence, reasoning, ApiCallLog(
             agent=axis,
             model=model,
             input_tokens=in_tok,
@@ -225,6 +236,75 @@ async def async_call_classifier(
         )
 
     raise RuntimeError(f"Classifier {axis}: épuisé les retries")
+
+
+async def async_call_classifier_self_consistent(
+    client: AsyncOpenAI,
+    model: str,
+    axis: str,
+    labels: list[str],
+    features_json: str,
+    caption: str | None,
+    instructions: str,
+    descriptions_taxonomiques: str,
+    semaphore: asyncio.Semaphore,
+    posted_at: datetime | None = None,
+    k: int = 3,
+    temperature: float = 0.3,
+    reasoning_effort: str = "medium",
+) -> tuple[str, str, str, list[ApiCallLog]]:
+    """Self-consistency : appelle le classifieur k fois à T>0 et vote majorité.
+
+    Contourne la sur-confiance systémique du classifieur (finding empirique
+    run 73 : 99.3% confidence=high dont 23.5% erronées) en produisant un
+    signal de calibration réel à partir de la divergence inter-samples
+    (Wang et al. 2023, "Self-Consistency Improves Chain of Thought Reasoning").
+
+    Retourne (label_majoritaire, confidence_synthétique, reasoning_concat,
+    logs). La confidence synthétique est dérivée du vote :
+        - k/k d'accord → "high"
+        - (k-1)/k d'accord → "medium"
+        - ≤(k-2)/k d'accord → "low"
+    """
+    from collections import Counter
+
+    async def _one_sample(sample_idx: int):
+        return await async_call_classifier(
+            client,
+            model,
+            axis,
+            labels,
+            features_json,
+            caption,
+            instructions,
+            descriptions_taxonomiques,
+            semaphore,
+            posted_at=posted_at,
+            temperature=temperature,
+            reasoning_effort=reasoning_effort,
+        )
+
+    results = await asyncio.gather(*[_one_sample(i) for i in range(k)])
+    labels_samples = [r[0] for r in results]
+    reasonings_samples = [r[2] for r in results]
+    logs = [r[3] for r in results]
+
+    vote = Counter(labels_samples)
+    majority_label, majority_count = vote.most_common(1)[0]
+
+    if majority_count == k:
+        synthetic_confidence = "high"
+    elif majority_count == k - 1:
+        synthetic_confidence = "medium"
+    else:
+        synthetic_confidence = "low"
+
+    reasoning_concat = "\n\n---\n\n".join(
+        f"[sample {i + 1}/{k} → {labels_samples[i]}]\n{reasonings_samples[i]}"
+        for i in range(k)
+    )
+
+    return majority_label, synthetic_confidence, reasoning_concat, logs
 
 
 async def _async_classify_from_features(
@@ -248,7 +328,7 @@ async def _async_classify_from_features(
     )
 
     async def _classify(axis: str, labels: list[str], instructions: str, descriptions: str):
-        return axis, await async_call_classifier(
+        label, conf, reasoning, logs = await async_call_classifier_self_consistent(
             client,
             MODEL_CLASSIFIER,
             axis,
@@ -259,7 +339,22 @@ async def _async_classify_from_features(
             descriptions,
             semaphore,
             posted_at=post.posted_at,
+            k=3,
+            temperature=0.3,
+            reasoning_effort="medium",
         )
+        # Un log agrégé représentant les k appels (sum des tokens + somme latence)
+        total_in = sum(l.input_tokens for l in logs)
+        total_out = sum(l.output_tokens for l in logs)
+        total_ms = sum(l.latency_ms for l in logs)
+        combined_log = ApiCallLog(
+            agent=axis,
+            model=MODEL_CLASSIFIER,
+            input_tokens=total_in,
+            output_tokens=total_out,
+            latency_ms=total_ms,
+        )
+        return axis, (label, conf, reasoning, combined_log)
 
     classifier_results = await asyncio.gather(*[
         _classify(axis, labels, instructions, descriptions)
@@ -268,9 +363,11 @@ async def _async_classify_from_features(
 
     predicted_labels: dict[str, str] = {}
     confidences: dict[str, str] = {}
-    for axis, (label, confidence, clf_log) in classifier_results:
+    reasonings: dict[str, str] = {}
+    for axis, (label, confidence, reasoning, clf_log) in classifier_results:
         predicted_labels[axis] = label
         confidences[axis] = confidence
+        reasonings[axis] = reasoning
         api_calls.append(clf_log)
 
     prediction = build_post_prediction(
@@ -278,7 +375,12 @@ async def _async_classify_from_features(
         features=features,
         labels_by_axis=predicted_labels,
     )
-    return PipelineResult(prediction=prediction, api_calls=api_calls, confidences=confidences)
+    return PipelineResult(
+        prediction=prediction,
+        api_calls=api_calls,
+        confidences=confidences,
+        reasonings=reasonings,
+    )
 
 
 async def async_classify_post(
@@ -351,7 +453,7 @@ async def async_classify_target_only(
     semaphore: asyncio.Semaphore,
 ) -> tuple[str, ApiCallLog]:
     """Classifie un seul axe cible — pour les bras candidats du bandit ProTeGi."""
-    label, _confidence, clf_log = await async_call_classifier(
+    label, _confidence, _reasoning, clf_log = await async_call_classifier(
         client,
         MODEL_CLASSIFIER,
         target_axis,
@@ -373,7 +475,7 @@ async def async_classify_batch(
     max_concurrent_api: int = 20,
     max_concurrent_posts: int = 10,
     on_progress: Any = None,
-    per_post_timeout: float = 240.0,
+    per_post_timeout: float = 480.0,
 ) -> list[PipelineResult]:
     """Classifie un batch de posts en parallèle (best effort per-post)."""
     client = get_async_client()

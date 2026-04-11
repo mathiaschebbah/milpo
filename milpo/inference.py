@@ -64,6 +64,7 @@ class PipelineResult:
     prediction: PostPrediction
     api_calls: list[ApiCallLog] = field(default_factory=list)
     confidences: dict[str, str] = field(default_factory=dict)
+    reasonings: dict[str, str] = field(default_factory=dict)
 
     @property
     def total_input_tokens(self) -> int:

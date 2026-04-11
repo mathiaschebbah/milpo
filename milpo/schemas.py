@@ -102,7 +102,11 @@ def build_json_schema_response_format(name: str, schema: dict) -> dict:
 
 
 def build_classifier_response_schema(labels: list[str]) -> dict:
-    """Schéma strict (label + confidence) pour un classifieur MILPO.
+    """Schéma strict (reasoning + label + confidence) pour un classifieur MILPO.
+
+    L'ordre des champs matters : reasoning est placé en premier pour
+    forcer le LLM à raisonner explicitement avant de commiter un label
+    (chain-of-thought structuré, Wei et al. 2022).
 
     Réutilisé par build_classifier_tool() pour les paramètres du tool function.
     """
@@ -110,6 +114,14 @@ def build_classifier_response_schema(labels: list[str]) -> dict:
     return {
         "type": "object",
         "properties": {
+            "reasoning": {
+                "type": "string",
+                "description": (
+                    "Raisonnement explicite avant de décider du label. "
+                    "Cite les signaux observés dans les features descripteur "
+                    "et applique les règles de désambiguation de la taxonomie."
+                ),
+            },
             "label": {
                 "type": "string",
                 "enum": labels,
@@ -119,7 +131,7 @@ def build_classifier_response_schema(labels: list[str]) -> dict:
                 "enum": ["high", "medium", "low"],
             },
         },
-        "required": ["label", "confidence"],
+        "required": ["reasoning", "label", "confidence"],
         "additionalProperties": False,
     }
 
@@ -145,11 +157,16 @@ def build_classifier_tool(axis: str, labels: list[str]) -> dict:
 
 
 class ClassifierDecision(StrictBaseModel):
-    """Décision structurée d'un classifieur (label + confidence).
+    """Décision structurée d'un classifieur (reasoning + label + confidence).
 
     Utilisée pour valider les arguments parsés depuis tool_call.function.arguments.
+    Le champ reasoning implémente un chain-of-thought structuré (Wei et al. 2022) :
+    le LLM est forcé de raisonner explicitement avant de choisir un label.
+    Optionnel pour rétrocompatibilité avec d'anciens call-sites qui ne
+    l'émettaient pas.
     """
 
+    reasoning: str = ""
     label: str
     confidence: Literal["high", "medium", "low"]
 

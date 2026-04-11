@@ -37,12 +37,16 @@ def build_descriptor_messages(
     ]
 
 
-def parse_classifier_arguments(arguments: str, axis: str, labels: list[str]) -> tuple[str, str]:
-    """Parse et valide les arguments d'un tool_call de classifieur."""
+def parse_classifier_arguments(arguments: str, axis: str, labels: list[str]) -> tuple[str, str, str]:
+    """Parse et valide les arguments d'un tool_call de classifieur.
+
+    Retourne (label, confidence, reasoning). Le reasoning est optionnel
+    pour rétrocompatibilité (anciens schemas sans CoT) — défaut "".
+    """
     parsed = ClassifierDecision.model_validate_json(arguments)
     if parsed.label not in labels:
         raise RuntimeError(f"Classifier {axis}: label invalide '{parsed.label}' (hors enum)")
-    return parsed.label, parsed.confidence
+    return parsed.label, parsed.confidence, parsed.reasoning
 
 
 def build_classifier_messages(
