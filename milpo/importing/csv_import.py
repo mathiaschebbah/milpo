@@ -156,6 +156,10 @@ def select_sample(cur, n: int = 2000, seed: int = 42, test_ratio: float = 0.2, p
         {"n": n, "seed": seed},
     )
 
+    # Split et presentation_order sont immuables une fois assignés : les
+    # réécrire contamine le test set (annotations attachées à ig_media_id,
+    # donc elles bougent de split). Seuls les nouveaux posts (NULL) sont
+    # assignés ici.
     cur.execute(
         """
         WITH ranked AS (
@@ -167,24 +171,33 @@ def select_sample(cur, n: int = 2000, seed: int = 42, test_ratio: float = 0.2, p
                    CEIL(COUNT(*) OVER (PARTITION BY h.visual_format_id, h.strategy) * %(test_ratio)s) AS n_test_per_group
             FROM sample_posts sp
             JOIN heuristic_labels h ON h.ig_media_id = sp.ig_media_id
+            WHERE sp.split IS NULL
         )
         UPDATE sample_posts SET split = CASE
             WHEN ig_media_id IN (SELECT ig_media_id FROM ranked WHERE rn <= n_test_per_group) THEN 'test'::split_type
             ELSE 'dev'::split_type
         END
+        WHERE split IS NULL
         """,
         {"test_ratio": test_ratio},
     )
 
     cur.execute(
         """
-        WITH shuffled AS (
-            SELECT ig_media_id,
-                   ROW_NUMBER() OVER (ORDER BY RANDOM()) AS presentation_order
+        WITH start_order AS (
+            SELECT COALESCE(MAX(presentation_order), 0) AS max_order
             FROM sample_posts
+            WHERE presentation_order IS NOT NULL
+        ),
+        shuffled AS (
+            SELECT ig_media_id,
+                   ROW_NUMBER() OVER (ORDER BY RANDOM())
+                   + (SELECT max_order FROM start_order) AS new_order
+            FROM sample_posts
+            WHERE presentation_order IS NULL
         )
         UPDATE sample_posts sp
-        SET presentation_order = s.presentation_order
+        SET presentation_order = s.new_order
         FROM shuffled s
         WHERE sp.ig_media_id = s.ig_media_id
         """
