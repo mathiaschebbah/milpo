@@ -1,0 +1,213 @@
+\section{Analyse économique : rendements d'échelle de la classification multimodale}
+
+\subsection{Cadre d'analyse}
+
+Nous empruntons le cadre de la théorie de la production (Bien \& Meritet, 2026) pour analyser la relation entre les ressources allouées à la classification et la performance obtenue. Nous modélisons la classification multimodale comme un processus de production à deux facteurs.
+
+\begin{itemize}
+    \item \textbf{Facteur $K$} (capital-modèle) : le coût unitaire du modèle de langage, mesuré en dollars par million de tokens d'entrée (\$/M). Ce facteur est un proxy de la capacité du modèle --- un modèle plus cher est généralement plus performant. Dans notre étude :
+    \begin{itemize}
+        \item $K_{FL} = 0{,}25$ \$/M (Gemini 3.1 Flash Lite)
+        \item $K_{Flash} = 0{,}50$ \$/M (Gemini 3 Flash Preview)
+    \end{itemize}
+    \item \textbf{Facteur $L$} (travail d'orchestration) : le nombre d'appels API effectués par run, proxy de l'intensité d'orchestration. Un appel unique (end-to-end naïf) représente $L = N$ (un appel par post), tandis que la pipeline complète (descripteur + classifieurs $\times k=3$ + oracle cascade) représente $L \approx 4N$.
+    \begin{itemize}
+        \item E2E naïf : $L = 437$
+        \item E2E harness ($k=3$ + oracle) : $L \approx 1\,400$
+        \item Pipeline complète : $L = 1\,748$
+    \end{itemize}
+\end{itemize}
+
+Le coût total du run s'exprime comme $C \approx K \times L \times \bar{t}$, où $\bar{t}$ est le nombre moyen de tokens par appel. Les facteurs $K$ et $L$ sont donc bien les deux leviers dont le produit détermine la dépense.
+
+L'output $Y = f(K, L)$ est l'accuracy de classification sur l'axe \textit{visual\_format} (42 classes), mesurée sur un test set fixe de 437 posts.
+
+\subsection{Données empiriques}
+
+Le tableau~\ref{tab:production} présente les six configurations testées dans l'ablation factorielle, avec leurs coordonnées $(K, L)$ et l'output observé.
+
+\begin{table}[h]
+\centering
+\caption{Fonction de production empirique : accuracy en fonction de $(K, L)$}
+\label{tab:production}
+\begin{tabular}{llrrr}
+\toprule
+Run & Mode & $K$ (\$/M) & $L$ (appels) & $Y$ (\%) \\
+\midrule
+96  & E2E naïf, Flash Lite        & 0,25 & 437   & 71,6 \\
+93  & E2E naïf, Flash             & 0,50 & 437   & 84,2 \\
+97  & E2E harness, Flash Lite     & 0,25 & 1\,396 & 77,8 \\
+95  & Pipeline, Flash Lite        & 0,25 & 1\,748 & 87,0 \\
+94  & E2E harness, Flash          & 0,50 & 1\,362 & 85,4 \\
+90  & Pipeline, Flash (vf)        & 0,50 & 1\,748 & 87,6 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Estimation de la fonction de production}
+
+Nous postulons une fonction de production de type Cobb-Douglas :
+
+\begin{equation}
+f(K, L) = A \cdot K^{\alpha} \cdot L^{\beta}
+\label{eq:cobb-douglas}
+\end{equation}
+
+En passant aux logarithmes :
+
+\begin{equation}
+\ln Y = \ln A + \alpha \ln K + \beta \ln L
+\end{equation}
+
+\paragraph{Estimation de $\alpha$ (à $L$ constant).} En comparant les runs 96 et 93, qui partagent le même nombre d'appels ($L = 437$) mais diffèrent par le modèle :
+
+\begin{align}
+\alpha \cdot (\ln 0{,}50 - \ln 0{,}25) &= \ln 84{,}2 - \ln 71{,}6 \\
+\alpha \cdot \ln 2 &= \ln \frac{84{,}2}{71{,}6} \\
+\alpha \times 0{,}693 &= 0{,}162 \\
+\boxed{\alpha \approx 0{,}234}
+\end{align}
+
+\paragraph{Estimation de $\beta$ (à $K$ constant).} En comparant les runs 96 et 95, qui partagent le même modèle ($K = 0{,}25$) mais diffèrent par l'intensité d'orchestration :
+
+\begin{align}
+\beta \cdot (\ln 1748 - \ln 437) &= \ln 87{,}0 - \ln 71{,}6 \\
+\beta \cdot \ln 4 &= \ln \frac{87{,}0}{71{,}6} \\
+\beta \times 1{,}386 &= 0{,}195 \\
+\boxed{\beta \approx 0{,}141}
+\end{align}
+
+La fonction de production estimée est donc :
+
+\begin{equation}
+\boxed{f(K, L) = A \cdot K^{0,234} \cdot L^{0,141}}
+\end{equation}
+
+\subsection{Test des rendements d'échelle}
+
+En multipliant les deux facteurs par un scalaire $t > 1$ :
+
+\begin{align}
+f(tK, tL) &= A \cdot (tK)^{0,234} \cdot (tL)^{0,141} \\
+           &= t^{0,234} \cdot t^{0,141} \cdot A \cdot K^{0,234} \cdot L^{0,141} \\
+           &= t^{0,375} \cdot f(K, L)
+\end{align}
+
+Le degré d'homogénéité est $\alpha + \beta = 0{,}375 < 1$. Puisque $t > 1$ implique $t^{0,375} < t$ :
+
+\begin{equation}
+\boxed{f(tK, tL) < t \cdot f(K, L) \quad \Longrightarrow \quad \text{rendements d'échelle décroissants}}
+\end{equation}
+
+\paragraph{Interprétation.} Si l'on double simultanément la capacité du modèle et le nombre d'appels API, l'accuracy n'est multipliée que par $2^{0,375} \approx 1{,}30$. On ne récupère que 30\% du gain espéré. Ce résultat est analogue à l'exemple classique $F(K,L) = 2K^{1/4}L^{1/2}$ (degré $3/4$), mais notre cas est \textit{encore plus décroissant} (degré $0{,}375$ vs $0{,}75$).
+
+\paragraph{Vérification numérique.} En partant du run 96 ($K = 0{,}25$, $L = 437$, $Y = 71{,}6\%$) et en doublant les deux facteurs ($t = 2$) :
+\begin{itemize}
+    \item Production attendue (rendements constants) : $t \cdot f = 2 \times 71{,}6 = 143{,}2\%$
+    \item Production réelle estimée : $t^{0,375} \cdot f = 1{,}30 \times 71{,}6 = 93{,}1\%$
+    \item Production observée (run 90, $K = 0{,}50$, $L = 1748$) : $87{,}6\%$
+\end{itemize}
+
+La production observée est inférieure même à la prédiction Cobb-Douglas, confirmant la sévérité des rendements décroissants au-delà d'un certain seuil.
+
+\subsection{Rendements factoriels (productivités marginales)}
+
+Les rendements factoriels mesurent la variation de la production liée à un seul facteur, l'autre étant maintenu constant (\textit{ceteris paribus}).
+
+\paragraph{Productivité marginale de $K$ (à $L$ constant).}
+
+\begin{equation}
+\frac{\partial f}{\partial K} = \alpha \cdot A \cdot K^{\alpha - 1} \cdot L^{\beta}
+\end{equation}
+
+Empiriquement, en doublant $K$ ($\times 2$) :
+
+\begin{center}
+\begin{tabular}{lccr}
+\toprule
+$L$ fixé & $Y(K_{FL})$ & $Y(K_{Flash})$ & $\Delta Y$ \\
+\midrule
+437 (E2E naïf) & 71,6\% & 84,2\% & $+12{,}6$ pp \\
+$\sim$1\,400 (harness) & 77,8\% & 85,4\% & $+7{,}6$ pp \\
+1\,748 (pipeline) & 87,0\% & 87,6\% & $+0{,}6$ pp \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+La productivité marginale de $K$ \textbf{décroît quand $L$ augmente} : plus l'orchestration est intense, moins la montée en gamme du modèle apporte de valeur. C'est la manifestation empirique de la substitution des facteurs.
+
+\paragraph{Productivité marginale de $L$ (à $K$ constant).}
+
+\begin{equation}
+\frac{\partial f}{\partial L} = \beta \cdot A \cdot K^{\alpha} \cdot L^{\beta - 1}
+\end{equation}
+
+Empiriquement, en multipliant $L$ par $\sim 4$ :
+
+\begin{center}
+\begin{tabular}{lccr}
+\toprule
+$K$ fixé & $Y(L_{naif})$ & $Y(L_{pipeline})$ & $\Delta Y$ \\
+\midrule
+0,25 (Flash Lite) & 71,6\% & 87,0\% & $+15{,}4$ pp \\
+0,50 (Flash) & 84,2\% & 87,6\% & $+3{,}4$ pp \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+La productivité marginale de $L$ \textbf{décroît quand $K$ augmente} : plus le modèle est capable, moins l'ajout d'orchestration apporte. Les deux facteurs présentent donc des rendements factoriels croisés décroissants.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.95\textwidth]{rendements_factoriels.png}
+\caption{Rendements factoriels décroissants. \textbf{Gauche} : doubler $K$ (modèle) donne $+12{,}6$ pp avec peu d'orchestration, mais seulement $+0{,}6$ pp avec la pipeline complète. \textbf{Droite} : multiplier $L$ par 4 donne $+15{,}4$ pp sur Flash Lite, mais seulement $+3{,}4$ pp sur Flash. Les courbes s'aplatissent dans les deux cas, confirmant la décroissance des rendements factoriels.}
+\label{fig:rendements}
+\end{figure}
+
+\subsection{Taux Marginal de Substitution Technique (TMST)}
+
+Le TMST mesure la quantité de capital-modèle $K$ que l'on peut économiser en ajoutant une unité de travail d'orchestration $L$, à production constante (le long d'une isoquante).
+
+\begin{equation}
+\text{TMST}_{L/K} = \frac{\partial f / \partial L}{\partial f / \partial K} = \frac{\beta}{\alpha} \cdot \frac{K}{L} = \frac{0{,}141}{0{,}234} \cdot \frac{K}{L} = 0{,}60 \cdot \frac{K}{L}
+\end{equation}
+
+\paragraph{Interprétation.} Les deux facteurs sont \textbf{substituables}. Un modèle bon marché ($K$ faible) combiné à une orchestration intensive ($L$ élevé) produit un résultat équivalent à un modèle coûteux ($K$ élevé) en appel direct ($L$ faible). C'est ce que nous observons empiriquement :
+
+\begin{itemize}
+    \item Pipeline Flash Lite ($K = 0{,}25$, $L = 1\,748$) : $Y = 87{,}0\%$
+    \item E2E naïf Flash ($K = 0{,}50$, $L = 437$) : $Y = 84{,}2\%$
+\end{itemize}
+
+Le modèle 2$\times$ moins cher, combiné à 4$\times$ plus d'appels, \textbf{dépasse} le modèle cher en appel direct de $+2{,}8$ points de pourcentage. La substitution est non seulement possible mais \textit{avantageuse}.
+
+\subsection{Frontière coût-performance}
+
+La figure~\ref{fig:frontier} présente la frontière efficiente coût-performance. Seuls quatre points sur huit sont Pareto-optimaux (runs 96, 93, 95, 90). Les quatre autres sont techniquement inefficients : ils consomment davantage de ressources pour un résultat inférieur.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.85\textwidth]{cost_performance_frontier.png}
+\caption{Frontière coût-performance de la classification multimodale Views. Les points sur la frontière efficiente (tirets rouges) exhibent des rendements marginaux décroissants caractéristiques d'une fonction de production à degré d'homogénéité $< 1$. Le coude au run 93 (\$2,58 ; 84,2\%) marque le point au-delà duquel chaque point de pourcentage supplémentaire coûte exponentiellement plus cher.}
+\label{fig:frontier}
+\end{figure}
+
+Le coût marginal par point de pourcentage gagné illustre la sévérité des rendements décroissants :
+
+\begin{center}
+\begin{tabular}{lrrr}
+\toprule
+Tranche & $\Delta C$ (\$) & $\Delta Y$ (pp) & Coût marginal (\$/pp) \\
+\midrule
+Run 96 $\to$ 93 & $+1{,}29$ & $+12{,}6$ & $0{,}10$ \\
+Run 93 $\to$ 95 & $+4{,}27$ & $+2{,}8$ & $1{,}53$ \\
+Run 95 $\to$ 90 & $+2{,}37$ & $+0{,}6$ & $3{,}95$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Le coût marginal est multiplié par $\times 40$ entre la première et la dernière tranche, confirmant que l'investissement en compute d'inférence obéit à une loi de rendements fortement décroissants.
+
+\subsection{Conclusion}
+
+L'analyse micro-économique de la classification multimodale par LLM révèle une fonction de production de type Cobb-Douglas à rendements d'échelle décroissants (degré 0,375). Les deux facteurs --- capacité du modèle ($K$) et intensité d'orchestration ($L$) --- sont substituables, ce qui justifie économiquement l'architecture pipeline : investir dans l'orchestration (self-consistency, oracle cascade, prompt engineering) est plus efficient que d'investir dans un modèle plus capable, au-delà du point de fonctionnement optimal identifié au coude de la frontière efficiente.

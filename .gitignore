@@ -4,6 +4,17 @@
 # macOS
 .DS_Store
 
+# LaTeX build artifacts
+docs/*.pdf
+docs/*.aux
+docs/*.log
+docs/*.out
+docs/*.toc
+docs/*.fls
+docs/*.fdb_latexmk
+docs/*.synctex.gz
+docs/*.png
+
 # Python
 __pycache__/
 *.py[cod]
