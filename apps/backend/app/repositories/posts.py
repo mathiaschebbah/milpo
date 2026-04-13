@@ -101,8 +101,8 @@ class PostRepository:
                     a.visual_format_id AS ann_visual_format_id,
                     a.strategy AS ann_strategy,
                     a.doubtful AS ann_doubtful
-                FROM sample_posts sp
-                JOIN posts p ON p.ig_media_id = sp.ig_media_id
+                FROM posts p
+                LEFT JOIN sample_posts sp ON sp.ig_media_id = p.ig_media_id
                 LEFT JOIN heuristic_labels h ON h.ig_media_id = p.ig_media_id
                 LEFT JOIN categories c ON c.id = h.category_id
                 LEFT JOIN visual_formats vf ON vf.id = h.visual_format_id
@@ -146,7 +146,7 @@ class PostRepository:
         self, annotator: str, offset: int = 0, limit: int = 50,
         status: str | None = None, category: str | None = None,
         split: str | None = None, visual_format: str | None = None,
-        year: int | None = None,
+        year: int | None = None, eval_set: str | None = None,
     ) -> tuple[list[dict], int]:
         where_clauses = []
         params: dict = {"annotator": annotator, "offset": offset, "limit": limit}
@@ -162,7 +162,7 @@ class PostRepository:
             where_clauses.append("c.name = :category")
             params["category"] = category
 
-        if split:
+        if split and not eval_set:
             where_clauses.append("sp.split::text = :split")
             params["split"] = split
 
@@ -174,6 +174,17 @@ class PostRepository:
             where_clauses.append("EXTRACT(YEAR FROM p.timestamp)::int = :year")
             params["year"] = year
 
+        if eval_set:
+            from_sql = "FROM eval_sets es JOIN posts p ON p.ig_media_id = es.ig_media_id"
+            where_clauses.insert(0, "es.set_name = :eval_set")
+            params["eval_set"] = eval_set
+            split_col = "NULL AS split"
+            order_sql = "ORDER BY a.id IS NOT NULL DESC, p.timestamp DESC"
+        else:
+            from_sql = "FROM sample_posts sp JOIN posts p ON p.ig_media_id = sp.ig_media_id"
+            split_col = "sp.split"
+            order_sql = "ORDER BY sp.split DESC, a.id IS NOT NULL DESC, p.timestamp DESC"
+
         where_sql = (" AND " + " AND ".join(where_clauses)) if where_clauses else ""
 
         result = await self.db.execute(
@@ -181,7 +192,7 @@ class PostRepository:
                 SELECT
                     p.ig_media_id, p.shortcode, p.caption, p.timestamp,
                     p.media_type, p.media_product_type,
-                    sp.split,
+                    {split_col},
                     c.name AS category, vf.name AS visual_format,
                     h.strategy,
                     ac.name AS annotation_category,
@@ -193,8 +204,7 @@ class PostRepository:
                      WHERE pm.parent_ig_media_id = p.ig_media_id
                      ORDER BY pm.media_order LIMIT 1) AS thumbnail_url,
                     COUNT(*) OVER () AS total_count
-                FROM sample_posts sp
-                JOIN posts p ON p.ig_media_id = sp.ig_media_id
+                {from_sql}
                 LEFT JOIN heuristic_labels h ON h.ig_media_id = p.ig_media_id
                 LEFT JOIN categories c ON c.id = h.category_id
                 LEFT JOIN visual_formats vf ON vf.id = h.visual_format_id
@@ -203,7 +213,7 @@ class PostRepository:
                 LEFT JOIN categories ac ON ac.id = a.category_id
                 LEFT JOIN visual_formats avf ON avf.id = a.visual_format_id
                 WHERE 1=1 {where_sql}
-                ORDER BY sp.split DESC, a.id IS NOT NULL DESC, p.timestamp DESC
+                {order_sql}
                 OFFSET :offset LIMIT :limit
             """),
             params,
@@ -211,6 +221,26 @@ class PostRepository:
         rows = [dict(r) for r in result.mappings().all()]
         total = rows[0]["total_count"] if rows else 0
         return rows, total
+
+    async def find_eval_set_stats(self, set_name: str, annotator: str) -> list[dict]:
+        result = await self.db.execute(
+            text("""
+                SELECT
+                    avf.name AS format_name,
+                    p.media_product_type AS scope,
+                    COUNT(*) AS total,
+                    COUNT(a.id) AS annotated
+                FROM eval_sets es
+                JOIN posts p ON p.ig_media_id = es.ig_media_id
+                JOIN annotations a ON a.ig_media_id = es.ig_media_id AND a.annotator = :annotator
+                JOIN visual_formats avf ON avf.id = a.visual_format_id
+                WHERE es.set_name = :set_name
+                GROUP BY avf.name, p.media_product_type
+                ORDER BY p.media_product_type, avf.name
+            """),
+            {"set_name": set_name, "annotator": annotator},
+        )
+        return [dict(r) for r in result.mappings().all()]
 
     async def find_all_categories(self) -> list[dict]:
         result = await self.db.execute(

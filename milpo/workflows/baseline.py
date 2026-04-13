@@ -65,6 +65,12 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--eval-set",
+        type=str,
+        default=None,
+        help="Nom du set d'évaluation (table eval_sets). Remplace --split.",
+    )
+    parser.add_argument(
         "--e2e",
         action="store_true",
         help=(
@@ -88,29 +94,45 @@ async def run_baseline(args) -> int:
     t0 = time.monotonic()
     run_label, prompt_label = RUN_LABELS[args.prompts]
 
-    suffix = args.split
+    suffix = args.eval_set or args.split
     if args.since:
-        suffix = f"{args.split}_since_{args.since}"
+        suffix = f"{suffix}_since_{args.since}"
     log.info("=" * 55)
-    log.info("%s — Évaluation %s sur split %s", run_label, prompt_label, suffix)
+    log.info("%s — Évaluation %s sur %s", run_label, prompt_label, suffix)
     log.info("=" * 55)
 
-    query_params: dict = {"split": args.split}
-    query = """
-        SELECT p.ig_media_id, p.caption,
-               p.media_type::text AS media_type,
-               p.media_product_type::text AS media_product_type,
-               p.timestamp AS posted_at
-        FROM sample_posts sp
-        JOIN posts p ON p.ig_media_id = sp.ig_media_id
-        JOIN annotations a ON a.ig_media_id = p.ig_media_id
-        WHERE sp.split = %(split)s
-          AND a.visual_format_id IS NOT NULL
-    """
+    query_params: dict = {}
+    if args.eval_set:
+        query = """
+            SELECT p.ig_media_id, p.caption,
+                   p.media_type::text AS media_type,
+                   p.media_product_type::text AS media_product_type,
+                   p.timestamp AS posted_at
+            FROM eval_sets es
+            JOIN posts p ON p.ig_media_id = es.ig_media_id
+            JOIN annotations a ON a.ig_media_id = p.ig_media_id
+            WHERE es.set_name = %(eval_set)s
+              AND a.visual_format_id IS NOT NULL
+              AND a.doubtful = false
+        """
+        query_params["eval_set"] = args.eval_set
+    else:
+        query = """
+            SELECT p.ig_media_id, p.caption,
+                   p.media_type::text AS media_type,
+                   p.media_product_type::text AS media_product_type,
+                   p.timestamp AS posted_at
+            FROM sample_posts sp
+            JOIN posts p ON p.ig_media_id = sp.ig_media_id
+            JOIN annotations a ON a.ig_media_id = p.ig_media_id
+            WHERE sp.split = %(split)s
+              AND a.visual_format_id IS NOT NULL
+        """
+        query_params["split"] = args.split
     if args.since:
         query += " AND p.timestamp >= %(since)s::timestamp"
         query_params["since"] = args.since
-    query += " ORDER BY sp.presentation_order"
+    query += " ORDER BY p.timestamp"
 
     raw_posts = conn.execute(query, query_params).fetchall()
     log.info("Posts %s : %d", suffix, len(raw_posts))

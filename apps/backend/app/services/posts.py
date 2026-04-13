@@ -85,9 +85,11 @@ class PostService:
         self, annotator: str, offset: int, limit: int,
         status: str | None, category: str | None, split: str | None = None,
         visual_format: str | None = None, year: int | None = None,
+        eval_set: str | None = None,
     ) -> PostGridPage:
         rows, total = await self.repository.find_all_sample_posts(
             annotator, offset, limit, status, category, split, visual_format, year,
+            eval_set=eval_set,
         )
 
         # Signer toutes les thumbnails en parallèle (au lieu de séquentiellement)
@@ -127,3 +129,6 @@ class PostService:
 
     async def get_years(self) -> list[int]:
         return await self.repository.find_all_years()
+
+    async def get_eval_set_stats(self, set_name: str, annotator: str) -> list[dict]:
+        return await self.repository.find_eval_set_stats(set_name, annotator)

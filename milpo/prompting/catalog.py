@@ -13,6 +13,7 @@ from milpo.db import (
     load_visual_formats,
 )
 from milpo.inference import PromptSet
+from milpo.taxonomy_renderer import render_taxonomy_for_scope
 
 PromptKey = tuple[str, str | None]
 PromptRecordMap = dict[PromptKey, dict]
@@ -45,22 +46,29 @@ def build_prompt_set(
     scope: str,
     prompt_contents: PromptContentMap,
 ) -> PromptSet:
-    vf = load_visual_formats(conn, scope)
     cats = load_categories(conn)
     strats = load_strategies(conn)
+
+    # Taxonomie visual_format depuis les YAML (format canonique structuré)
+    vf_canonical = render_taxonomy_for_scope(scope)
+
+    # Catégories et stratégies depuis la BDD (format simple, peu de classes)
+    cat_descriptions = format_descriptions(cats)
+    strat_descriptions = format_descriptions(strats)
+
     return PromptSet(
         descriptor_instructions=prompt_contents[("descriptor", scope)],
         category_instructions=prompt_contents[("category", None)],
         visual_format_instructions=prompt_contents[("visual_format", scope)],
         strategy_instructions=prompt_contents[("strategy", None)],
         descriptor_descriptions=(
-            "## Formats visuels\n\n" + format_descriptions(vf)
-            + "\n\n## Catégories\n\n" + format_descriptions(cats)
-            + "\n\n## Stratégies\n\n" + format_descriptions(strats)
+            "## Formats visuels\n\n" + vf_canonical
+            + "\n\n## Catégories\n\n" + cat_descriptions
+            + "\n\n## Stratégies\n\n" + strat_descriptions
         ),
-        category_descriptions=format_descriptions(cats),
-        visual_format_descriptions=format_descriptions(vf),
-        strategy_descriptions=format_descriptions(strats),
+        category_descriptions=cat_descriptions,
+        visual_format_descriptions=vf_canonical,
+        strategy_descriptions=strat_descriptions,
     )
 
 
@@ -142,10 +150,11 @@ def load_descriptor_prompt_configs(conn, source: str = "human_v0") -> dict[str, 
         record = get_active_prompt(conn, "descriptor", scope, source=source)
         if record is None:
             raise RuntimeError(f"Prompt descripteur introuvable pour scope={scope}")
+        vf_canonical = render_taxonomy_for_scope(scope)
         out[scope] = {
             "instructions": record["content"],
             "descriptions": (
-                "## Formats visuels\n\n" + format_descriptions(load_visual_formats(conn, scope))
+                "## Formats visuels\n\n" + vf_canonical
                 + "\n\n## Catégories\n\n" + format_descriptions(load_categories(conn))
                 + "\n\n## Stratégies\n\n" + format_descriptions(load_strategies(conn))
             ),
@@ -164,14 +173,14 @@ def build_target_descriptions(
     if target_agent == "descriptor":
         return (
             "## Formats visuels\n\n"
-            + format_descriptions(load_visual_formats(conn, effective_scope))
+            + render_taxonomy_for_scope(effective_scope)
             + "\n\n## Catégories\n\n"
             + format_descriptions(load_categories(conn))
             + "\n\n## Stratégies\n\n"
             + format_descriptions(load_strategies(conn))
         )
     if target_agent == "visual_format":
-        return format_descriptions(load_visual_formats(conn, effective_scope))
+        return render_taxonomy_for_scope(effective_scope)
     if target_agent == "category":
         return format_descriptions(load_categories(conn))
     if target_agent == "strategy":

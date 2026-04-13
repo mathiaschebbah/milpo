@@ -148,6 +148,7 @@ export async function fetchPostGrid(params: {
   visual_format?: string
   year?: number
   annotator?: string
+  eval_set?: string
 } = {}): Promise<PostGridResponse> {
   const qs = new URLSearchParams()
   if (params.offset) qs.set('offset', String(params.offset))
@@ -157,8 +158,20 @@ export async function fetchPostGrid(params: {
   if (params.split) qs.set('split', params.split)
   if (params.visual_format) qs.set('visual_format', params.visual_format)
   if (params.year !== undefined) qs.set('year', String(params.year))
+  if (params.eval_set) qs.set('eval_set', params.eval_set)
   qs.set('annotator', params.annotator ?? 'mathias')
   return requestJson<PostGridResponse>(`/posts/?${qs}`)
+}
+
+export type EvalSetStat = {
+  format_name: string
+  scope: string
+  total: number
+  annotated: number
+}
+
+export async function fetchEvalSetStats(setName: string, annotator = 'mathias'): Promise<EvalSetStat[]> {
+  return requestJson<EvalSetStat[]>(`/posts/eval-set/${setName}/stats?annotator=${annotator}`)
 }
 
 // --- Taxonomy ---

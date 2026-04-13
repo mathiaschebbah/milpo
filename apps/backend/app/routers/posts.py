@@ -23,11 +23,22 @@ async def list_posts(
     split: str | None = None,
     visual_format: str | None = None,
     year: int | None = None,
+    eval_set: str | None = None,
     service: PostService = Depends(get_service),
 ):
     return await service.get_grid(
         annotator, offset, limit, status, category, split, visual_format, year,
+        eval_set=eval_set,
     )
+
+
+@router.get("/eval-set/{set_name}/stats")
+async def get_eval_set_stats(
+    set_name: str,
+    annotator: str = "mathias",
+    service: PostService = Depends(get_service),
+):
+    return await service.get_eval_set_stats(set_name, annotator)
 
 
 @router.get("/next", response_model=NextPostOut)

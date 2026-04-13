@@ -4,12 +4,13 @@ import { MediaViewer } from '@/components/MediaViewer'
 import { AnnotationForm } from '@/components/AnnotationForm'
 import { PostGrid } from '@/components/PostGrid'
 import { TaxonomyPage } from '@/components/TaxonomyPage'
+import { EvalSetValidation } from '@/components/EvalSetValidation'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
 
-type View = 'annotate' | 'grid' | 'taxonomy'
+type View = 'annotate' | 'grid' | 'taxonomy' | 'eval'
 
-const VALID_VIEWS: View[] = ['annotate', 'grid', 'taxonomy']
+const VALID_VIEWS: View[] = ['annotate', 'grid', 'taxonomy', 'eval']
 
 function App() {
   const [view, setView] = useUrlState<View>('view', 'annotate', {
@@ -48,6 +49,16 @@ function App() {
                 }`}
               >
                 Dataset
+              </button>
+              <button
+                onClick={() => setView('eval')}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-all ${
+                  view === 'eval'
+                    ? 'bg-white text-neutral-900 shadow-sm'
+                    : 'text-neutral-500 hover:text-neutral-700'
+                }`}
+              >
+                Alpha
               </button>
               <button
                 onClick={() => setView('taxonomy')}
@@ -89,6 +100,15 @@ function App() {
       {view === 'grid' && (
         <main className="max-w-6xl mx-auto p-6">
           <PostGrid onOpenPost={(id) => { loadPost(id); setView('annotate') }} />
+        </main>
+      )}
+
+      {view === 'eval' && (
+        <main className="max-w-6xl mx-auto p-6">
+          <EvalSetValidation
+            setName="alpha"
+            onOpenPost={(id) => { loadPost(id); setView('annotate') }}
+          />
         </main>
       )}
 
