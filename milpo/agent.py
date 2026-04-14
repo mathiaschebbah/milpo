@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import datetime
 
 from openai import OpenAI
 
@@ -28,6 +29,7 @@ def _sleep_before_retry(attempt: int) -> None:
 def call_descriptor(
     client: OpenAI,
     model: str,
+    scope: str,
     media_urls: list[str],
     media_types: list[str],
     caption: str | None,
@@ -41,6 +43,7 @@ def call_descriptor(
         caption,
         instructions,
         descriptions_taxonomiques,
+        scope=scope,
     )
 
     start = time.monotonic()
@@ -92,13 +95,16 @@ def call_classifier(
     caption: str | None,
     instructions: str,
     descriptions_taxonomiques: str,
+    posted_at: datetime | None = None,
 ) -> tuple[str, str, dict]:
     """Appelle un classifieur text-only via tool calling forcé."""
     messages = build_classifier_messages(
+        axis,
         features_json,
         caption,
         instructions,
         descriptions_taxonomiques,
+        posted_at=posted_at,
     )
     tool = build_classifier_tool(axis, labels)
     tool_name = tool["function"]["name"]

@@ -7,30 +7,32 @@ from pathlib import Path
 
 import yaml
 
-# Chemin par défaut vers le vault Obsidian
-DEFAULT_TAXONOMY_DIR = os.environ.get(
-    "MILPO_TAXONOMY_DIR",
-    str(Path(__file__).resolve().parent.parent / "Descriptions"),
-)
-
 # Fallback : vault Obsidian
 OBSIDIAN_TAXONOMY_DIR = "/Users/mathias/Desktop/Vaults/memoire-v2/Descriptions"
 
 
 def _resolve_taxonomy_dir() -> Path:
-    """Résout le dossier de taxonomie : repo local, puis vault Obsidian."""
-    for candidate in (DEFAULT_TAXONOMY_DIR, OBSIDIAN_TAXONOMY_DIR):
-        p = Path(candidate)
-        if p.is_dir():
-            return p
+    """Résout le dossier de taxonomie : env, repo local, puis vault Obsidian."""
+    for candidate in (
+        os.environ.get("MILPO_TAXONOMY_DIR", ""),
+        str(Path(__file__).resolve().parent.parent / "Descriptions"),
+        OBSIDIAN_TAXONOMY_DIR,
+    ):
+        if candidate:
+            p = Path(candidate)
+            if p.is_dir():
+                return p
     raise FileNotFoundError(
-        f"Dossier de taxonomie introuvable : {DEFAULT_TAXONOMY_DIR} ni {OBSIDIAN_TAXONOMY_DIR}"
+        "Dossier de taxonomie introuvable : "
+        f"{os.environ.get('MILPO_TAXONOMY_DIR', '')!r}, "
+        f"{Path(__file__).resolve().parent.parent / 'Descriptions'} "
+        f"ni {OBSIDIAN_TAXONOMY_DIR}"
     )
 
 
 def load_taxonomy_yaml(scope: str) -> list[dict]:
-    """Charge toutes les fiches YAML d'un scope (FEED ou REELS)."""
-    taxonomy_dir = _resolve_taxonomy_dir() / scope
+    """Charge toutes les fiches YAML d'un scope canonique."""
+    taxonomy_dir = _resolve_taxonomy_dir() / scope.upper()
     if not taxonomy_dir.is_dir():
         raise FileNotFoundError(f"Dossier taxonomie introuvable : {taxonomy_dir}")
 
@@ -43,13 +45,21 @@ def load_taxonomy_yaml(scope: str) -> list[dict]:
     return classes
 
 
+def _render_signature_line(entry: dict) -> str:
+    if "signature_visuelle" in entry:
+        return f"SIGNATURE_VISUELLE: {entry['signature_visuelle']}"
+    if "signature" in entry:
+        return f"SIGNATURE: {entry['signature']}"
+    raise KeyError(f"Champ signature manquant pour la classe {entry.get('class', '?')}")
+
+
 def render_taxonomy(classes: list[dict]) -> str:
     """Rend une liste de fiches taxonomiques en texte canonique pour le modèle."""
     blocks = []
     for c in classes:
         lines = [
             f"CLASS: {c['class']}",
-            f"SIGNATURE_VISUELLE: {c['signature_visuelle']}",
+            _render_signature_line(c),
             f"SIGNAL_OBLIGATOIRE: {c['signal_obligatoire']}",
         ]
         if "caption_signal" in c:

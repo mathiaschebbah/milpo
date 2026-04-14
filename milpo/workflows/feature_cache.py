@@ -116,6 +116,7 @@ async def extract_one(
         features, api_log = await async_call_descriptor(
             client=client,
             model=model,
+            scope=scope,
             media_urls=[url for url, _ in signed_media],
             media_types=[media_type for _, media_type in signed_media],
             caption=post["caption"],

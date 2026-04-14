@@ -97,6 +97,7 @@ def classify_post(
     features, desc_usage = call_descriptor(
         client=client,
         model=routing["model_descriptor"],
+        scope=post.media_product_type,
         media_urls=post.media_urls,
         media_types=post.media_types,
         caption=post.caption,
@@ -132,6 +133,7 @@ def classify_post(
                 caption=post.caption,
                 instructions=instructions,
                 descriptions_taxonomiques=descriptions,
+                posted_at=post.posted_at,
             ): axis
             for axis, (labels, instructions, descriptions) in classifiers.items()
         }

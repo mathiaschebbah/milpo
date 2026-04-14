@@ -5,15 +5,11 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from milpo.db import (
-    format_descriptions,
     get_active_prompt,
     get_prompt_version,
-    load_categories,
-    load_strategies,
-    load_visual_formats,
 )
 from milpo.inference import PromptSet
-from milpo.taxonomy_renderer import render_taxonomy_for_scope
+from milpo.taxonomy_renderer import load_taxonomy_yaml, render_taxonomy_for_scope
 
 PromptKey = tuple[str, str | None]
 PromptRecordMap = dict[PromptKey, dict]
@@ -34,10 +30,11 @@ DSPY_MODES = ("dspy_constrained", "dspy_free")
 
 
 def build_labels(conn, scope: str) -> dict[str, list[str]]:
+    del conn
     return {
-        "category": [c["name"] for c in load_categories(conn)],
-        "visual_format": [f["name"] for f in load_visual_formats(conn, scope)],
-        "strategy": [s["name"] for s in load_strategies(conn)],
+        "category": [c["class"] for c in load_taxonomy_yaml("CATEGORY")],
+        "visual_format": [f["class"] for f in load_taxonomy_yaml(scope)],
+        "strategy": [s["class"] for s in load_taxonomy_yaml("STRATEGY")],
     }
 
 
@@ -46,15 +43,11 @@ def build_prompt_set(
     scope: str,
     prompt_contents: PromptContentMap,
 ) -> PromptSet:
-    cats = load_categories(conn)
-    strats = load_strategies(conn)
+    del conn
 
-    # Taxonomie visual_format depuis les YAML (format canonique structuré)
     vf_canonical = render_taxonomy_for_scope(scope)
-
-    # Catégories et stratégies depuis la BDD (format simple, peu de classes)
-    cat_descriptions = format_descriptions(cats)
-    strat_descriptions = format_descriptions(strats)
+    cat_canonical = render_taxonomy_for_scope("CATEGORY")
+    strat_canonical = render_taxonomy_for_scope("STRATEGY")
 
     return PromptSet(
         descriptor_instructions=prompt_contents[("descriptor", scope)],
@@ -63,12 +56,12 @@ def build_prompt_set(
         strategy_instructions=prompt_contents[("strategy", None)],
         descriptor_descriptions=(
             "## Formats visuels\n\n" + vf_canonical
-            + "\n\n## Catégories\n\n" + cat_descriptions
-            + "\n\n## Stratégies\n\n" + strat_descriptions
+            + "\n\n## Catégories\n\n" + cat_canonical
+            + "\n\n## Stratégies\n\n" + strat_canonical
         ),
-        category_descriptions=cat_descriptions,
+        category_descriptions=cat_canonical,
         visual_format_descriptions=vf_canonical,
-        strategy_descriptions=strat_descriptions,
+        strategy_descriptions=strat_canonical,
     )
 
 
@@ -151,12 +144,14 @@ def load_descriptor_prompt_configs(conn, source: str = "human_v0") -> dict[str, 
         if record is None:
             raise RuntimeError(f"Prompt descripteur introuvable pour scope={scope}")
         vf_canonical = render_taxonomy_for_scope(scope)
+        cat_canonical = render_taxonomy_for_scope("CATEGORY")
+        strat_canonical = render_taxonomy_for_scope("STRATEGY")
         out[scope] = {
             "instructions": record["content"],
             "descriptions": (
                 "## Formats visuels\n\n" + vf_canonical
-                + "\n\n## Catégories\n\n" + format_descriptions(load_categories(conn))
-                + "\n\n## Stratégies\n\n" + format_descriptions(load_strategies(conn))
+                + "\n\n## Catégories\n\n" + cat_canonical
+                + "\n\n## Stratégies\n\n" + strat_canonical
             ),
             "id": record["id"],
         }
@@ -169,20 +164,21 @@ def build_target_descriptions(
     target_scope: str | None,
 ) -> str:
     """Charge les descriptions taxonomiques pertinentes pour une cible de rewrite."""
+    del conn
     effective_scope = target_scope or "FEED"
     if target_agent == "descriptor":
         return (
             "## Formats visuels\n\n"
             + render_taxonomy_for_scope(effective_scope)
             + "\n\n## Catégories\n\n"
-            + format_descriptions(load_categories(conn))
+            + render_taxonomy_for_scope("CATEGORY")
             + "\n\n## Stratégies\n\n"
-            + format_descriptions(load_strategies(conn))
+            + render_taxonomy_for_scope("STRATEGY")
         )
     if target_agent == "visual_format":
         return render_taxonomy_for_scope(effective_scope)
     if target_agent == "category":
-        return format_descriptions(load_categories(conn))
+        return render_taxonomy_for_scope("CATEGORY")
     if target_agent == "strategy":
-        return format_descriptions(load_strategies(conn))
+        return render_taxonomy_for_scope("STRATEGY")
     raise ValueError(f"target_agent inconnu: {target_agent}")

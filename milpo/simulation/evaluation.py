@@ -188,6 +188,7 @@ async def async_multi_evaluate(
         features, desc_log = await async_call_descriptor(
             client=client,
             model=routing["model_descriptor"],
+            scope=scope,
             media_urls=post.media_urls,
             media_types=post.media_types,
             caption=post.caption,
@@ -225,6 +226,7 @@ async def async_multi_evaluate(
         features, desc_log = await async_call_descriptor(
             client=client,
             model=routing["model_descriptor"],
+            scope=post.media_product_type,
             media_urls=post.media_urls,
             media_types=post.media_types,
             caption=post.caption,
@@ -502,6 +504,7 @@ async def evaluate_full_dev_opt(
                 async_call_descriptor(
                     client=client,
                     model=routing["model_descriptor"],
+                    scope=scope,
                     media_urls=post.media_urls,
                     media_types=post.media_types,
                     caption=post.caption,

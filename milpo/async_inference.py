@@ -49,6 +49,7 @@ def get_async_client() -> AsyncOpenAI:
 async def async_call_descriptor(
     client: AsyncOpenAI,
     model: str,
+    scope: str,
     media_urls: list[str],
     media_types: list[str],
     caption: str | None,
@@ -62,6 +63,7 @@ async def async_call_descriptor(
         caption,
         instructions,
         descriptions_taxonomiques,
+        scope=scope,
     )
 
     max_retries = 3
@@ -138,6 +140,7 @@ async def async_call_classifier(
     déterministes (T = 0.1 + reasoning high).
     """
     messages = build_classifier_messages(
+        axis,
         features_json,
         caption,
         instructions,
@@ -495,6 +498,7 @@ async def async_classify_post(
     features, desc_log = await async_call_descriptor(
         client=client,
         model=routing["model_descriptor"],
+        scope=post.media_product_type,
         media_urls=post.media_urls,
         media_types=post.media_types,
         caption=post.caption,

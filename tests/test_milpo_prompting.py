@@ -25,18 +25,16 @@ class PromptingTests(unittest.TestCase):
         self.assertEqual(records[("category", None)]["content"], "category:None:dspy_constrained")
         self.assertEqual(prompt_ids[("strategy", None)], 6)
 
-    @patch("milpo.prompting.catalog.load_visual_formats")
-    @patch("milpo.prompting.catalog.load_categories")
-    @patch("milpo.prompting.catalog.load_strategies")
+    @patch("milpo.prompting.catalog.render_taxonomy_for_scope")
     def test_build_prompt_set_uses_shared_prompt_contents(
         self,
-        mock_load_strategies,
-        mock_load_categories,
-        mock_load_visual_formats,
+        mock_render_taxonomy_for_scope,
     ) -> None:
-        mock_load_visual_formats.return_value = [{"name": "post_news", "description": "desc vf"}]
-        mock_load_categories.return_value = [{"name": "news", "description": "desc cat"}]
-        mock_load_strategies.return_value = [{"name": "awareness", "description": "desc strat"}]
+        mock_render_taxonomy_for_scope.side_effect = lambda scope: {
+            "FEED": "CLASS: post_news",
+            "CATEGORY": "CLASS: news",
+            "STRATEGY": "CLASS: awareness",
+        }[scope]
 
         prompts = build_prompt_set(
             conn=object(),
