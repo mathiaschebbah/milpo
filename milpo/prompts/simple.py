@@ -34,14 +34,14 @@ ROLE = (
 
 CONTEXT = (
     "Tu reçois les images ou la vidéo du post, sa caption, une grille\n"
-    "d'observation (questions ASSIST) et les descriptions des classes pour\n"
-    "chaque axe. Ces descriptions sont ta grille de lecture : tu dois t'y\n"
-    "référer et raisonner en fonction d'elles."
+    "d'observation et les descriptions des classes pour chaque axe. Ces\n"
+    "descriptions sont ta grille de lecture : tu dois t'y référer et\n"
+    "raisonner en fonction d'elles."
 )
 
 OUTPUT_REASONING = (
     "Dans reasoning, explicite pour chaque axe :\n"
-    "1. Les signaux observés dans les images et la caption (guidés par les questions ASSIST).\n"
+    "1. Les signaux observés dans les images, la caption et la grille d'observation.\n"
     "2. Les règles SIGNAL_OBLIGATOIRE et EXCLUT appliquées.\n"
     "3. Les hésitations rencontrées.\n"
     "Puis choisis un label par axe."
@@ -51,7 +51,7 @@ GUARDRAIL = "Chaque label doit venir de l'enum correspondante fournie."
 
 # ─── Bloc 3 — USER MESSAGE (headers) ────────────────────────────────────────
 
-USER_QUESTIONS_HEADER = "Grille d'observation (questions ASSIST) :"
+USER_QUESTIONS_HEADER = "Grille d'observation :"
 USER_VF_HEADER = "Descriptions des classes — axe visual_format :"
 USER_CAT_HEADER = "Descriptions des classes — axe category :"
 USER_STRAT_HEADER = "Descriptions des classes — axe strategy :"
