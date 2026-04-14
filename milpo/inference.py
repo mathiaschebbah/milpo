@@ -606,6 +606,27 @@ async def async_classify_post_simple(
 # ─── Batches publics ────────────────────────────────────────────────────────
 
 
+SLOW_POST_THRESHOLD_S: float = 60.0
+
+
+async def _watchdog_slow_post(post_id: int, n_media: int) -> None:
+    """Warn périodiquement quand un post dure plus que SLOW_POST_THRESHOLD_S.
+
+    Annulé dès que le post termine (normalement, timeout, erreur).
+    Utilisé pour diagnostiquer les posts qui traînent dans un batch.
+    """
+    elapsed = 0.0
+    while True:
+        await asyncio.sleep(SLOW_POST_THRESHOLD_S)
+        elapsed += SLOW_POST_THRESHOLD_S
+        log.warning(
+            "Post %s toujours en cours après %ds (%d médias)",
+            post_id,
+            int(elapsed),
+            n_media,
+        )
+
+
 async def async_classify_alma_batch(
     posts: list[PostInput],
     labels_by_scope: dict[str, dict[str, list[str]]],
@@ -631,6 +652,9 @@ async def async_classify_alma_batch(
         async with post_semaphore:
             scope = post.media_product_type.upper()
             labels = labels_by_scope[scope]
+            watchdog = asyncio.create_task(
+                _watchdog_slow_post(post.ig_media_id, len(post.media_urls))
+            )
             try:
                 results[idx] = await asyncio.wait_for(
                     async_classify_post_alma(
@@ -656,6 +680,8 @@ async def async_classify_alma_batch(
             except Exception as exc:
                 error_count += 1
                 log.error("Post %s échoué: %s", post.ig_media_id, exc)
+            finally:
+                watchdog.cancel()
 
             done_count += 1
             if on_progress:
@@ -685,6 +711,9 @@ async def async_classify_simple_batch(
         nonlocal done_count, error_count
         scope = post.media_product_type.upper()
         labels = labels_by_scope[scope]
+        watchdog = asyncio.create_task(
+            _watchdog_slow_post(post.ig_media_id, len(post.media_urls))
+        )
         try:
             results[idx] = await asyncio.wait_for(
                 async_classify_post_simple(
@@ -708,6 +737,8 @@ async def async_classify_simple_batch(
         except Exception as exc:
             error_count += 1
             log.error("Post %s échoué: %s", post.ig_media_id, exc)
+        finally:
+            watchdog.cancel()
 
         done_count += 1
         if on_progress:
