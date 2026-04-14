@@ -36,27 +36,10 @@ MODEL_CLASSIFIER_VISUAL_FORMAT = os.environ.get(
     "MILPO_MODEL_CLASSIFIER_VISUAL_FORMAT", MODEL_CLASSIFIER
 )
 
-MODEL_REWRITER = os.environ.get("HILPO_MODEL_REWRITER", "gpt-5.4")
-
-# Le rewriter utilise l'API OpenAI directe
+# Conservée uniquement parce que `related_work/dspy_baseline/optimize.py`
+# l'utilise pour son proposer model (et pour sa task LM OpenAI-compatible).
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
-REWRITER_API_KEY = OPENAI_API_KEY
-REWRITER_BASE_URL = "https://api.openai.com/v1"
-
-# Modèles pour la boucle ProTeGi (mode --mode protegi).
-# Par défaut tous = MODEL_REWRITER pour isoler l'effet de la décomposition
-# algorithmique (critic / editor / paraphraser séparés) de l'effet d'un mélange
-# de modèles. Surchargeable via env vars pour ablations.
-MODEL_CRITIC = os.environ.get("HILPO_MODEL_CRITIC", MODEL_REWRITER)
-MODEL_EDITOR = os.environ.get("HILPO_MODEL_EDITOR", MODEL_REWRITER)
-MODEL_PARAPHRASER = os.environ.get("HILPO_MODEL_PARAPHRASER", MODEL_REWRITER)
-
-# Oracle cascade — Claude Sonnet 4.6 appelé sur les prédictions classifieur
-# avec confidence synthétique medium/low (vote self-consistency <k/k).
-# Désactivé automatiquement si ANTHROPIC_API_KEY n'est pas set.
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-MODEL_ORACLE = os.environ.get("MILPO_MODEL_ORACLE", "claude-sonnet-4-6")
-ORACLE_ENABLED = bool(ANTHROPIC_API_KEY)
 
 # GCS
 GCS_SIGNING_SA_EMAIL = os.environ.get("HILPO_GCS_SIGNING_SA_EMAIL", "")

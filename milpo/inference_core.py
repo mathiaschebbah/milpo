@@ -30,10 +30,6 @@ def build_classifier_specs(
     }
 
 
-def features_to_json(features: str) -> str:
-    return features
-
-
 def build_post_prediction(
     *,
     ig_media_id: int,

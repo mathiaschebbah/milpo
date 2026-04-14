@@ -91,7 +91,7 @@ def call_classifier(
     model: str,
     axis: str,
     labels: list[str],
-    features_json: str,
+    perceiver_output: str,
     caption: str | None,
     instructions: str,
     descriptions_taxonomiques: str,
@@ -100,7 +100,7 @@ def call_classifier(
     """Appelle un classifieur text-only via tool calling forcé."""
     messages = build_classifier_messages(
         axis,
-        features_json,
+        perceiver_output,
         caption,
         instructions,
         descriptions_taxonomiques,

@@ -39,9 +39,9 @@ class AsyncInferenceTests(unittest.IsolatedAsyncioTestCase):
     async def test_async_classify_with_features_uses_precomputed_features(self) -> None:
         desc_log = ApiCallLog("descriptor", "gemini", 10, 2, 20)
         classifier_logs = [
-            ("news", "high", ApiCallLog("category", "qwen", 1, 1, 1)),
-            ("post_news", "high", ApiCallLog("visual_format", "qwen", 1, 1, 1)),
-            ("awareness", "medium", ApiCallLog("strategy", "qwen", 1, 1, 1)),
+            ("news", "high", "reason", ApiCallLog("category", "qwen", 1, 1, 1)),
+            ("post_news", "high", "reason", ApiCallLog("visual_format", "qwen", 1, 1, 1)),
+            ("awareness", "medium", "reason", ApiCallLog("strategy", "qwen", 1, 1, 1)),
         ]
 
         with patch("milpo.async_inference.async_call_classifier", new=AsyncMock(side_effect=classifier_logs)):
@@ -69,9 +69,9 @@ class AsyncInferenceTests(unittest.IsolatedAsyncioTestCase):
         ), patch(
             "milpo.async_inference.async_call_classifier",
             new=AsyncMock(side_effect=[
-                ("news", "high", ApiCallLog("category", "qwen", 1, 1, 1)),
-                ("post_news", "high", ApiCallLog("visual_format", "qwen", 1, 1, 1)),
-                ("awareness", "low", ApiCallLog("strategy", "qwen", 1, 1, 1)),
+                ("news", "high", "reason", ApiCallLog("category", "qwen", 1, 1, 1)),
+                ("post_news", "high", "reason", ApiCallLog("visual_format", "qwen", 1, 1, 1)),
+                ("awareness", "low", "reason", ApiCallLog("strategy", "qwen", 1, 1, 1)),
             ]),
         ):
             result = await async_classify_post(
@@ -86,13 +86,6 @@ class AsyncInferenceTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result.prediction.ig_media_id, 1)
         self.assertEqual(result.prediction.strategy, "awareness")
-
-
-class FeaturesToJsonTests(unittest.TestCase):
-    def test_features_to_json_is_identity_for_string(self) -> None:
-        from milpo.inference_core import features_to_json
-        text = "Slide 1 : Photo plein cadre, overlay Views."
-        self.assertEqual(features_to_json(text), text)
 
 
 if __name__ == "__main__":

@@ -64,7 +64,13 @@ class BaselineWorkflowTests(unittest.IsolatedAsyncioTestCase):
 
         from milpo.workflows.baseline import run_baseline
 
-        run_id = await run_baseline(argparse.Namespace(prompts="v0"))
+        run_id = await run_baseline(argparse.Namespace(
+            prompts="v0",
+            split="test",
+            since=None,
+            eval_set=None,
+            e2e=False,
+        ))
 
         self.assertEqual(run_id, 11)
         mock_build_prompt_set.assert_called()

@@ -28,23 +28,14 @@ def persist_pipeline_predictions(
     pred = result.prediction
     confidences = getattr(result, "confidences", {}) or {}
     reasonings = getattr(result, "reasonings", {}) or {}
-    extras = getattr(result, "extras", {}) or {}
     for axis in ("category", "visual_format", "strategy"):
         prompt_id = resolve_prompt_id(prompt_ids, axis, scope)
         if prompt_id is None:
             continue
-        axis_extra = extras.get(axis) or {}
         raw: dict = {
             "confidence": confidences.get(axis),
             "reasoning": reasonings.get(axis),
         }
-        # Structured self-consistency data : samples + majority + oracle
-        if axis_extra.get("samples"):
-            raw["samples"] = axis_extra["samples"]
-        if "majority_label" in axis_extra:
-            raw["classifier_majority_label"] = axis_extra["majority_label"]
-        if axis_extra.get("oracle_info") is not None:
-            raw["oracle"] = axis_extra["oracle_info"]
         if axis == "visual_format":
             raw["text"] = pred.features
         store_prediction(

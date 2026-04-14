@@ -14,7 +14,6 @@ from milpo.config import MODEL_CLASSIFIER
 from milpo.inference_core import (
     build_classifier_specs,
     build_post_prediction,
-    features_to_json,
 )
 from milpo.router import route
 from milpo.schemas import PostPrediction
@@ -118,7 +117,6 @@ def classify_post(
         visual_format_labels,
         strategy_labels,
     )
-    features_json = features_to_json(features)
     results: dict[str, tuple[str, str]] = {}
 
     with ThreadPoolExecutor(max_workers=3) as pool:
@@ -129,7 +127,7 @@ def classify_post(
                 model=MODEL_CLASSIFIER,
                 axis=axis,
                 labels=labels,
-                features_json=features_json,
+                perceiver_output=features,
                 caption=post.caption,
                 instructions=instructions,
                 descriptions_taxonomiques=descriptions,

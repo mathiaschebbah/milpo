@@ -37,6 +37,8 @@ RUN_LABELS = {
 }
 
 
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Évalue la pipeline MILPO sur un split annoté")
     parser.add_argument(
@@ -76,14 +78,6 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Mode end-to-end : un seul appel multimodal par post (images + caption → 3 axes). "
             "Utilise le modèle MILPO_MODEL_CLASSIFIER_VISUAL_FORMAT."
-        ),
-    )
-    parser.add_argument(
-        "--e2e-harness",
-        action="store_true",
-        help=(
-            "Mode E2E + harness : k=3 appels à T=0.3, vote majoritaire, "
-            "oracle Sonnet 4.6 sur vf medium/low confidence."
         ),
     )
     return parser
@@ -144,12 +138,10 @@ async def run_baseline(args) -> int:
         MODEL_DESCRIPTOR_REELS,
     )
 
-    is_e2e = args.e2e or args.e2e_harness
+    is_e2e = args.e2e
     e2e_model = MODEL_CLASSIFIER_VISUAL_FORMAT if is_e2e else None
-    if args.e2e:
+    if is_e2e:
         suffix = f"e2e_{suffix}"
-    elif args.e2e_harness:
-        suffix = f"e2e_harness_{suffix}"
 
     run_id = create_run(conn, {
         "name": f"{run_label}_{args.prompts}_{suffix}",
@@ -157,7 +149,6 @@ async def run_baseline(args) -> int:
         "since": args.since,
         "prompts": args.prompts,
         "e2e": args.e2e,
-        "e2e_harness": args.e2e_harness,
         "models": {
             "descriptor_feed": MODEL_DESCRIPTOR_FEED,
             "descriptor_reels": MODEL_DESCRIPTOR_REELS,
@@ -221,19 +212,7 @@ async def run_baseline(args) -> int:
             flush=True,
         )
 
-    if args.e2e_harness:
-        from milpo.e2e_inference import async_classify_e2e_harness_batch
-
-        results = await async_classify_e2e_harness_batch(
-            posts=post_inputs,
-            prompts_by_scope=prompts_by_scope,
-            labels_by_scope=labels_by_scope,
-            model=e2e_model,
-            max_concurrent=10,
-            k=3,
-            on_progress=on_progress,
-        )
-    elif args.e2e:
+    if args.e2e:
         from milpo.e2e_inference import async_classify_e2e_batch
 
         results = await async_classify_e2e_batch(
