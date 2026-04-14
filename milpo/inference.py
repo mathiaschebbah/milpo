@@ -1,4 +1,4 @@
-"""Pipeline d'inférence MILPO : router → descripteur → 3 classifieurs."""
+"""Pipeline d'inférence MILPO (sync) : router → descripteur → 3 classifieurs."""
 
 from __future__ import annotations
 
@@ -11,26 +11,9 @@ from openai import OpenAI
 from milpo.agent import call_classifier, call_descriptor
 from milpo.client import get_client
 from milpo.config import MODEL_CLASSIFIER
-from milpo.inference_core import (
-    build_classifier_specs,
-    build_post_prediction,
-)
+from milpo.inference_core import build_post_prediction
 from milpo.router import route
 from milpo.schemas import PostPrediction
-
-
-@dataclass
-class PromptSet:
-    """Ensemble de prompts pour un scope donné."""
-
-    descriptor_instructions: str
-    category_instructions: str
-    visual_format_instructions: str
-    strategy_instructions: str
-    descriptor_descriptions: str
-    category_descriptions: str
-    visual_format_descriptions: str
-    strategy_descriptions: str
 
 
 @dataclass
@@ -81,13 +64,12 @@ class PipelineResult:
 
 def classify_post(
     post: PostInput,
-    prompts: PromptSet,
     category_labels: list[str],
     visual_format_labels: list[str],
     strategy_labels: list[str],
     client: OpenAI | None = None,
 ) -> PipelineResult:
-    """Exécute le pipeline complet pour un post."""
+    """Exécute le pipeline complet pour un post (version sync)."""
     if client is None:
         client = get_client()
 
@@ -100,8 +82,6 @@ def classify_post(
         media_urls=post.media_urls,
         media_types=post.media_types,
         caption=post.caption,
-        instructions=prompts.descriptor_instructions,
-        descriptions_taxonomiques=prompts.descriptor_descriptions,
     )
     api_calls.append(ApiCallLog(
         agent="descriptor",
@@ -111,12 +91,12 @@ def classify_post(
         latency_ms=desc_usage["latency_ms"],
     ))
 
-    classifiers = build_classifier_specs(
-        prompts,
-        category_labels,
-        visual_format_labels,
-        strategy_labels,
-    )
+    post_scope = post.media_product_type.upper()
+    axis_labels = {
+        "category": category_labels,
+        "visual_format": visual_format_labels,
+        "strategy": strategy_labels,
+    }
     results: dict[str, tuple[str, str]] = {}
 
     with ThreadPoolExecutor(max_workers=3) as pool:
@@ -129,11 +109,10 @@ def classify_post(
                 labels=labels,
                 perceiver_output=features,
                 caption=post.caption,
-                instructions=instructions,
-                descriptions_taxonomiques=descriptions,
+                post_scope=post_scope,
                 posted_at=post.posted_at,
             ): axis
-            for axis, (labels, instructions, descriptions) in classifiers.items()
+            for axis, labels in axis_labels.items()
         }
 
         for future in as_completed(futures):

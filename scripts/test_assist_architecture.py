@@ -16,7 +16,7 @@ from milpo.config import MODEL_DESCRIPTOR_FEED, MODEL_DESCRIPTOR_REELS, MODEL_CL
 from milpo.db import get_conn
 from milpo.gcs import sign_media_urls as gcs_sign_media
 from milpo.prompts import alma, classifier as clf_prompts
-from milpo.taxonomy_renderer import render_taxonomy_for_scope, render_questions_for_scope
+from milpo.taxonomy_renderer import render_questions_for_scope
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(message)s", datefmt="%H:%M:%S")
 log = logging.getLogger("test_assist")
@@ -59,15 +59,13 @@ def call_alma(client, media_urls: list[tuple[str, str]], caption: str, scope: st
 
 def call_classifier(client, alma_output: str, caption: str, scope: str, labels: list[str], posted_at=None) -> tuple[str, str]:
     """Appelle le classifieur avec la sortie d'Alma + taxonomie."""
-    taxonomy = render_taxonomy_for_scope(scope)
-
     system = clf_prompts.build_system("visual_format")
     user_text = clf_prompts.build_user(
         axis="visual_format",
         perceiver_output=alma_output,
         caption=caption,
-        descriptions_taxonomiques=taxonomy,
         posted_at=posted_at,
+        post_scope=scope,
     )
 
     tool = {

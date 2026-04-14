@@ -2,7 +2,8 @@
 
 Les blocs de prompt ASSIST vivent dans `milpo.prompts` ; ce module ne fait
 que l'adaptation vers le format OpenAI `messages` (list[dict] avec roles,
-images inlinées comme image_url).
+images inlinées comme image_url). La taxonomie et les questions ASSIST
+viennent des YAML du vault via `milpo.taxonomy_renderer`.
 """
 
 from __future__ import annotations
@@ -18,18 +19,15 @@ def build_descriptor_messages(
     media_urls: list[str],
     media_types: list[str],
     caption: str | None,
-    instructions: str,
-    descriptions_taxonomiques: str,
-    scope: str = "FEED",
+    scope: str,
 ) -> list[dict]:
-    """Construit les messages ASSIST pour le descripteur multimodal."""
-    del instructions, descriptions_taxonomiques, media_types
+    """Construit les messages ASSIST pour le descripteur multimodal (Alma)."""
+    del media_types  # Gemini accepte les vidéos comme image_url aussi.
 
     rendered_questions = render_questions_for_scope(scope.upper())
 
     content: list[dict] = [{"type": "text", "text": alma.build_user_intro(rendered_questions)}]
     for url in media_urls:
-        # Gemini via l'endpoint OpenAI-compatible accepte les vidéos comme image_url
         content.append({"type": "image_url", "image_url": {"url": url}})
     content.append({"type": "text", "text": alma.build_user_caption(caption)})
 
@@ -43,13 +41,10 @@ def build_classifier_messages(
     axis: str,
     perceiver_output: str,
     caption: str | None,
-    instructions: str,
-    descriptions_taxonomiques: str,
+    post_scope: str,
     posted_at: datetime | None = None,
 ) -> list[dict]:
     """Construit les messages ASSIST pour un classifieur text-only."""
-    del instructions
-
     return [
         {"role": "system", "content": classifier.build_system(axis)},
         {
@@ -58,8 +53,8 @@ def build_classifier_messages(
                 axis=axis,
                 perceiver_output=perceiver_output,
                 caption=caption,
-                descriptions_taxonomiques=descriptions_taxonomiques,
                 posted_at=posted_at,
+                post_scope=post_scope,
             ),
         },
     ]

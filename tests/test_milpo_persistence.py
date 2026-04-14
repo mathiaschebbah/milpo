@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import json
 import unittest
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock
 
 from milpo.inference import ApiCallLog, PipelineResult, PostInput
 from milpo.persistence.classification import (
     persist_api_calls,
     persist_pipeline_predictions,
-    resolve_prompt_id,
 )
 from milpo.persistence.runs import (
     create_run,
@@ -19,36 +18,10 @@ from milpo.persistence.runs import (
     finish_run,
     get_or_create_extraction_run,
 )
+
+
 def _features() -> str:
     return "Slide 1 : Photo plein cadre, titre editorial Views overlay, logo Views."
-
-
-# ── resolve_prompt_id ──────────────────────────────────────────
-
-
-class ResolvePromptIdTests(unittest.TestCase):
-    def test_scoped_agent_uses_scope_key(self) -> None:
-        prompt_ids = {
-            ("descriptor", "FEED"): 10,
-            ("descriptor", "REELS"): 11,
-        }
-        self.assertEqual(resolve_prompt_id(prompt_ids, "descriptor", "FEED"), 10)
-        self.assertEqual(resolve_prompt_id(prompt_ids, "descriptor", "REELS"), 11)
-
-    def test_unscoped_agent_ignores_scope(self) -> None:
-        prompt_ids = {("category", None): 20}
-        self.assertEqual(resolve_prompt_id(prompt_ids, "category", "FEED"), 20)
-        self.assertEqual(resolve_prompt_id(prompt_ids, "category", None), 20)
-
-    def test_visual_format_uses_scope(self) -> None:
-        prompt_ids = {
-            ("visual_format", "FEED"): 30,
-            ("visual_format", "REELS"): 31,
-        }
-        self.assertEqual(resolve_prompt_id(prompt_ids, "visual_format", "FEED"), 30)
-
-    def test_returns_none_when_missing(self) -> None:
-        self.assertIsNone(resolve_prompt_id({}, "category", None))
 
 
 # ── persist_pipeline_predictions ───────────────────────────────
@@ -67,21 +40,13 @@ class PersistPredictionsTests(unittest.TestCase):
             features=features,
         )
         result = PipelineResult(prediction=prediction, api_calls=[])
-        prompt_ids = {
-            ("category", None): 1,
-            ("visual_format", "FEED"): 2,
-            ("strategy", None): 3,
-            ("descriptor", "FEED"): 4,
-        }
 
         with unittest.mock.patch("milpo.persistence.classification.store_prediction") as mock_store:
             mock_store.return_value = 99
             persist_pipeline_predictions(
                 MagicMock(),
                 post_id=42,
-                scope="FEED",
                 result=result,
-                prompt_ids=prompt_ids,
                 run_id=7,
                 store_descriptor=True,
             )
@@ -104,21 +69,13 @@ class PersistPredictionsTests(unittest.TestCase):
             features=_features(),
         )
         result = PipelineResult(prediction=prediction, api_calls=[])
-        prompt_ids = {
-            ("category", None): 1,
-            ("visual_format", "FEED"): 2,
-            ("strategy", None): 3,
-            ("descriptor", "FEED"): 4,
-        }
 
         with unittest.mock.patch("milpo.persistence.classification.store_prediction") as mock_store:
             mock_store.return_value = 99
             persist_pipeline_predictions(
                 MagicMock(),
                 post_id=42,
-                scope="FEED",
                 result=result,
-                prompt_ids=prompt_ids,
                 run_id=7,
                 store_descriptor=False,
             )
@@ -131,24 +88,18 @@ class PersistPredictionsTests(unittest.TestCase):
 
 
 class PersistApiCallsTests(unittest.TestCase):
-    def test_stores_each_api_call_with_correct_prompt_id(self) -> None:
+    def test_stores_each_api_call(self) -> None:
         api_calls = [
             ApiCallLog("descriptor", "gemini", 100, 50, 200),
             ApiCallLog("category", "qwen", 10, 5, 30),
         ]
-        prompt_ids = {
-            ("descriptor", "FEED"): 4,
-            ("category", None): 1,
-        }
 
         with unittest.mock.patch("milpo.persistence.classification.store_api_call") as mock_store:
             mock_store.return_value = 1
             total = persist_api_calls(
                 MagicMock(),
                 post_id=42,
-                scope="FEED",
                 api_calls=api_calls,
-                prompt_ids=prompt_ids,
                 run_id=7,
                 call_type="classification",
             )

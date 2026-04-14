@@ -15,8 +15,9 @@ import time
 from openai import AsyncOpenAI
 
 from milpo.async_inference import get_async_client
-from milpo.inference import ApiCallLog, PipelineResult, PostInput, PromptSet
+from milpo.inference import ApiCallLog, PipelineResult, PostInput
 from milpo.schemas import PostPrediction
+from milpo.taxonomy_renderer import render_taxonomy_for_scope
 
 log = logging.getLogger("milpo")
 
@@ -44,7 +45,6 @@ async def async_classify_post_e2e(
     client: AsyncOpenAI,
     model: str,
     post: PostInput,
-    prompts: PromptSet,
     vf_labels: list[str],
     cat_labels: list[str],
     strat_labels: list[str],
@@ -54,9 +54,9 @@ async def async_classify_post_e2e(
 
     system = _E2E_SYSTEM_PROMPT.format(
         scope=scope,
-        vf_descriptions=prompts.visual_format_descriptions,
-        cat_descriptions=prompts.category_descriptions,
-        strat_descriptions=prompts.strategy_descriptions,
+        vf_descriptions=render_taxonomy_for_scope(scope),
+        cat_descriptions=render_taxonomy_for_scope("CATEGORY"),
+        strat_descriptions=render_taxonomy_for_scope("STRATEGY"),
     )
 
     content: list[dict] = []
@@ -156,7 +156,6 @@ async def async_classify_post_e2e(
 
 async def async_classify_e2e_batch(
     posts: list[PostInput],
-    prompts_by_scope: dict[str, PromptSet],
     labels_by_scope: dict[str, dict[str, list[str]]],
     model: str,
     max_concurrent: int = 10,
@@ -171,14 +170,12 @@ async def async_classify_e2e_batch(
     async def process(idx: int, post: PostInput):
         nonlocal done_count, error_count
         scope = "FEED" if post.media_product_type == "FEED" else "REELS"
-        prompts = prompts_by_scope[scope]
         labels = labels_by_scope[scope]
         try:
             result = await async_classify_post_e2e(
                 client=client,
                 model=model,
                 post=post,
-                prompts=prompts,
                 vf_labels=labels["visual_format"],
                 cat_labels=labels["category"],
                 strat_labels=labels["strategy"],

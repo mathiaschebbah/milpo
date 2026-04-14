@@ -1,4 +1,9 @@
-"""Agents MILPO : descripteur multimodal et classifieurs text-only."""
+"""Agents MILPO (sync) : descripteur multimodal et classifieurs text-only.
+
+Version synchrone symétrique d'`async_inference` — utilisée par `inference.classify_post`
+et les tests directs. La version async async_inference.async_classify_* est préférée
+pour le batch processing.
+"""
 
 from __future__ import annotations
 
@@ -33,16 +38,12 @@ def call_descriptor(
     media_urls: list[str],
     media_types: list[str],
     caption: str | None,
-    instructions: str,
-    descriptions_taxonomiques: str,
 ) -> tuple[str, dict]:
     """Appelle le descripteur multimodal et retourne l'analyse textuelle."""
     messages = build_descriptor_messages(
         media_urls,
         media_types,
         caption,
-        instructions,
-        descriptions_taxonomiques,
         scope=scope,
     )
 
@@ -54,7 +55,7 @@ def call_descriptor(
             response = client.chat.completions.create(
                 model=model,
                 messages=messages,
-                temperature=0.1,
+                temperature=0.0,
             )
             if not response.choices:
                 raise RuntimeError("Descriptor: réponse vide")
@@ -93,17 +94,15 @@ def call_classifier(
     labels: list[str],
     perceiver_output: str,
     caption: str | None,
-    instructions: str,
-    descriptions_taxonomiques: str,
+    post_scope: str,
     posted_at: datetime | None = None,
 ) -> tuple[str, str, dict]:
-    """Appelle un classifieur text-only via tool calling forcé."""
+    """Appelle un classifieur text-only via tool calling."""
     messages = build_classifier_messages(
         axis,
         perceiver_output,
         caption,
-        instructions,
-        descriptions_taxonomiques,
+        post_scope,
         posted_at=posted_at,
     )
     tool = build_classifier_tool(axis, labels)
@@ -119,7 +118,7 @@ def call_classifier(
                 messages=messages,
                 tools=[tool],
                 tool_choice="auto",
-                temperature=0.1,
+                temperature=0.0,
             )
             if not response.choices:
                 raise RuntimeError(f"Classifier {axis}: réponse vide")

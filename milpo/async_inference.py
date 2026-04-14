@@ -16,11 +16,8 @@ from milpo.agent_common import (
     parse_classifier_arguments,
 )
 from milpo.config import LLM_API_KEY, LLM_BASE_URL, MODEL_CLASSIFIER
-from milpo.inference import ApiCallLog, PipelineResult, PostInput, PromptSet
-from milpo.inference_core import (
-    build_classifier_specs,
-    build_post_prediction,
-)
+from milpo.inference import ApiCallLog, PipelineResult, PostInput
+from milpo.inference_core import build_post_prediction
 from milpo.router import route
 from milpo.schemas import build_classifier_tool
 
@@ -52,16 +49,12 @@ async def async_call_descriptor(
     media_urls: list[str],
     media_types: list[str],
     caption: str | None,
-    instructions: str,
-    descriptions_taxonomiques: str,
     semaphore: asyncio.Semaphore,
 ) -> tuple[str, ApiCallLog]:
     messages = build_descriptor_messages(
         media_urls,
         media_types,
         caption,
-        instructions,
-        descriptions_taxonomiques,
         scope=scope,
     )
 
@@ -73,7 +66,7 @@ async def async_call_descriptor(
                 response = await client.chat.completions.create(
                     model=model,
                     messages=messages,
-                    temperature=0.1,
+                    temperature=0.0,
                 )
             except Exception as exc:
                 log.warning("Descriptor appel échoué (attempt %d): %s", attempt + 1, exc)
@@ -121,8 +114,7 @@ async def async_call_classifier(
     labels: list[str],
     perceiver_output: str,
     caption: str | None,
-    instructions: str,
-    descriptions_taxonomiques: str,
+    post_scope: str,
     semaphore: asyncio.Semaphore,
     posted_at: datetime | None = None,
     temperature: float = 0.0,
@@ -138,8 +130,7 @@ async def async_call_classifier(
         axis,
         perceiver_output,
         caption,
-        instructions,
-        descriptions_taxonomiques,
+        post_scope,
         posted_at=posted_at,
     )
     tool = build_classifier_tool(axis, labels)
@@ -271,21 +262,20 @@ async def _async_classify_from_features(
     *,
     features: str,
     api_calls: list[ApiCallLog],
-    prompts: PromptSet,
     category_labels: list[str],
     visual_format_labels: list[str],
     strategy_labels: list[str],
     client: AsyncOpenAI,
     semaphore: asyncio.Semaphore,
 ) -> PipelineResult:
-    classifiers = build_classifier_specs(
-        prompts,
-        category_labels,
-        visual_format_labels,
-        strategy_labels,
-    )
+    post_scope = post.media_product_type.upper()
+    axis_labels = {
+        "category": category_labels,
+        "visual_format": visual_format_labels,
+        "strategy": strategy_labels,
+    }
 
-    async def _classify(axis: str, labels: list[str], instructions: str, descriptions: str):
+    async def _classify(axis: str, labels: list[str]):
         # Routage par axe : visual_format peut utiliser un modèle plus capable
         # (override via MILPO_MODEL_CLASSIFIER_VISUAL_FORMAT) parce que c'est
         # l'axe le plus difficile (42 classes long-tail, règles subtiles).
@@ -301,8 +291,7 @@ async def _async_classify_from_features(
             labels,
             features,
             post.caption,
-            instructions,
-            descriptions,
+            post_scope,
             semaphore,
             posted_at=post.posted_at,
             temperature=0.0,
@@ -311,8 +300,7 @@ async def _async_classify_from_features(
         return axis, (label, conf, reasoning, clf_log)
 
     classifier_results = await asyncio.gather(*[
-        _classify(axis, labels, instructions, descriptions)
-        for axis, (labels, instructions, descriptions) in classifiers.items()
+        _classify(axis, labels) for axis, labels in axis_labels.items()
     ])
 
     predicted_labels: dict[str, str] = {}
@@ -342,7 +330,6 @@ async def _async_classify_from_features(
 
 async def async_classify_post(
     post: PostInput,
-    prompts: PromptSet,
     category_labels: list[str],
     visual_format_labels: list[str],
     strategy_labels: list[str],
@@ -358,15 +345,12 @@ async def async_classify_post(
         media_urls=post.media_urls,
         media_types=post.media_types,
         caption=post.caption,
-        instructions=prompts.descriptor_instructions,
-        descriptions_taxonomiques=prompts.descriptor_descriptions,
         semaphore=semaphore,
     )
     return await _async_classify_from_features(
         post,
         features=features,
         api_calls=[desc_log],
-        prompts=prompts,
         category_labels=category_labels,
         visual_format_labels=visual_format_labels,
         strategy_labels=strategy_labels,
@@ -379,7 +363,6 @@ async def async_classify_with_features(
     post: PostInput,
     features: str,
     desc_log: ApiCallLog,
-    prompts: PromptSet,
     category_labels: list[str],
     visual_format_labels: list[str],
     strategy_labels: list[str],
@@ -391,7 +374,6 @@ async def async_classify_with_features(
         post,
         features=features,
         api_calls=[desc_log],
-        prompts=prompts,
         category_labels=category_labels,
         visual_format_labels=visual_format_labels,
         strategy_labels=strategy_labels,
@@ -400,35 +382,8 @@ async def async_classify_with_features(
     )
 
 
-async def async_classify_target_only(
-    post: PostInput,
-    features: str,
-    target_axis: str,
-    target_labels: list[str],
-    target_instructions: str,
-    target_descriptions: str,
-    client: AsyncOpenAI,
-    semaphore: asyncio.Semaphore,
-) -> tuple[str, ApiCallLog]:
-    """Classifie un seul axe cible — pour les bras candidats du bandit ProTeGi."""
-    label, _confidence, _reasoning, clf_log = await async_call_classifier(
-        client,
-        MODEL_CLASSIFIER,
-        target_axis,
-        target_labels,
-        features,
-        post.caption,
-        target_instructions,
-        target_descriptions,
-        semaphore,
-        posted_at=post.posted_at,
-    )
-    return label, clf_log
-
-
 async def async_classify_batch(
     posts: list[PostInput],
-    prompts_by_scope: dict[str, PromptSet],
     labels_by_scope: dict[str, dict[str, list[str]]],
     max_concurrent_api: int = 20,
     max_concurrent_posts: int = 10,
@@ -448,14 +403,12 @@ async def async_classify_batch(
         nonlocal done_count, error_count
         async with post_semaphore:
             scope = post.media_product_type.upper()
-            prompts = prompts_by_scope[scope]
             labels = labels_by_scope[scope]
 
             try:
                 results[idx] = await asyncio.wait_for(
                     async_classify_post(
                         post=post,
-                        prompts=prompts,
                         category_labels=labels["category"],
                         visual_format_labels=labels["visual_format"],
                         strategy_labels=labels["strategy"],

@@ -124,14 +124,33 @@ def _format_posted_at(posted_at: datetime | None) -> str:
     return posted_at.date().isoformat()
 
 
+def _axis_scope(axis: str, post_scope: str) -> str:
+    """Convertit (axis, post_scope FEED/REELS) en scope YAML taxonomie."""
+    if axis == "visual_format":
+        return post_scope.upper()
+    if axis == "category":
+        return "CATEGORY"
+    if axis == "strategy":
+        return "STRATEGY"
+    raise ValueError(f"Axe inconnu : {axis!r}")
+
+
 def build_user(
     axis: str,
     perceiver_output: str,
     caption: str | None,
-    descriptions_taxonomiques: str,
     posted_at: datetime | None,
+    post_scope: str,
 ) -> str:
-    """Assemble le user message du classifieur."""
+    """Assemble le user message du classifieur.
+
+    La taxonomie canonique est chargée ici depuis les YAML du vault via
+    `render_taxonomy_for_scope` — source de vérité unique.
+    """
+    from milpo.taxonomy_renderer import render_taxonomy_for_scope
+
+    descriptions_taxonomiques = render_taxonomy_for_scope(_axis_scope(axis, post_scope))
+
     return (
         f"{USER_DESCRIPTIONS_HEADER}\n\n"
         f"{descriptions_taxonomiques}\n\n"

@@ -8,19 +8,10 @@ from __future__ import annotations
 
 import asyncio
 import unittest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 from milpo.async_inference import async_classify_batch
-from milpo.inference import ApiCallLog, PostInput, PromptSet
-
-
-def _prompt_set() -> PromptSet:
-    return PromptSet(
-        descriptor_instructions="d", category_instructions="c",
-        visual_format_instructions="v", strategy_instructions="s",
-        descriptor_descriptions="dd", category_descriptions="cd",
-        visual_format_descriptions="vd", strategy_descriptions="sd",
-    )
+from milpo.inference import ApiCallLog, PostInput
 
 
 def _post(ig_media_id: int = 1) -> PostInput:
@@ -33,7 +24,7 @@ def _post(ig_media_id: int = 1) -> PostInput:
 
 def _make_classify_post_mock(slow_ids: set[int], delay: float = 10.0):
     """Create a mock that hangs for posts in slow_ids, returns instantly for others."""
-    async def _mock(post, prompts, category_labels, visual_format_labels,
+    async def _mock(post, category_labels, visual_format_labels,
                     strategy_labels, client, semaphore):
         if post.ig_media_id in slow_ids:
             await asyncio.sleep(delay)
@@ -49,6 +40,9 @@ def _make_classify_post_mock(slow_ids: set[int], delay: float = 10.0):
     return _mock
 
 
+_LABELS = {"FEED": {"category": ["news"], "visual_format": ["post_news"], "strategy": ["awareness"]}}
+
+
 class PostTimeoutTests(unittest.IsolatedAsyncioTestCase):
     """async_classify_batch doit supporter un per_post_timeout."""
 
@@ -60,8 +54,7 @@ class PostTimeoutTests(unittest.IsolatedAsyncioTestCase):
         with patch("milpo.async_inference.async_classify_post", new=mock):
             results = await async_classify_batch(
                 posts=posts,
-                prompts_by_scope={"FEED": _prompt_set()},
-                labels_by_scope={"FEED": {"category": ["news"], "visual_format": ["post_news"], "strategy": ["awareness"]}},
+                labels_by_scope=_LABELS,
                 per_post_timeout=1.0,
             )
 
@@ -78,8 +71,7 @@ class PostTimeoutTests(unittest.IsolatedAsyncioTestCase):
         with patch("milpo.async_inference.async_classify_post", new=mock):
             results = await async_classify_batch(
                 posts=posts,
-                prompts_by_scope={"FEED": _prompt_set()},
-                labels_by_scope={"FEED": {"category": ["news"], "visual_format": ["post_news"], "strategy": ["awareness"]}},
+                labels_by_scope=_LABELS,
                 per_post_timeout=5.0,
             )
 
@@ -97,8 +89,7 @@ class PostTimeoutTests(unittest.IsolatedAsyncioTestCase):
         with patch("milpo.async_inference.async_classify_post", new=mock):
             await async_classify_batch(
                 posts=posts,
-                prompts_by_scope={"FEED": _prompt_set()},
-                labels_by_scope={"FEED": {"category": ["news"], "visual_format": ["post_news"], "strategy": ["awareness"]}},
+                labels_by_scope=_LABELS,
                 per_post_timeout=0.5,
                 on_progress=on_progress,
             )
@@ -113,22 +104,21 @@ class PostTimeoutTests(unittest.IsolatedAsyncioTestCase):
         posts = [_post(1), _post(2), _post(3)]
         call_count = 0
 
-        async def _mock(post, prompts, category_labels, visual_format_labels,
+        async def _mock(post, category_labels, visual_format_labels,
                         strategy_labels, client, semaphore):
             nonlocal call_count
             call_count += 1
             if post.ig_media_id == 2:
                 raise RuntimeError("API exploded")
             return await _make_classify_post_mock(set())(
-                post, prompts, category_labels, visual_format_labels,
+                post, category_labels, visual_format_labels,
                 strategy_labels, client, semaphore,
             )
 
         with patch("milpo.async_inference.async_classify_post", new=_mock):
             results = await async_classify_batch(
                 posts=posts,
-                prompts_by_scope={"FEED": _prompt_set()},
-                labels_by_scope={"FEED": {"category": ["news"], "visual_format": ["post_news"], "strategy": ["awareness"]}},
+                labels_by_scope=_LABELS,
                 per_post_timeout=5.0,
             )
 

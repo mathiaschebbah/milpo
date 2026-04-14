@@ -5,24 +5,11 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 from milpo.async_inference import async_classify_post, async_classify_with_features
-from milpo.inference import ApiCallLog, PostInput, PromptSet
+from milpo.inference import ApiCallLog, PostInput
 
 
 def _features() -> str:
     return "Slide 1 : Photo plein cadre, titre editorial Views overlay, logo Views en haut à gauche, gabarit reconnaissable."
-
-
-def _prompt_set() -> PromptSet:
-    return PromptSet(
-        descriptor_instructions="describe",
-        category_instructions="category",
-        visual_format_instructions="vf",
-        strategy_instructions="strategy",
-        descriptor_descriptions="desc",
-        category_descriptions="cat desc",
-        visual_format_descriptions="vf desc",
-        strategy_descriptions="str desc",
-    )
 
 
 def _post() -> PostInput:
@@ -49,7 +36,6 @@ class AsyncInferenceTests(unittest.IsolatedAsyncioTestCase):
                 post=_post(),
                 features=_features(),
                 desc_log=desc_log,
-                prompts=_prompt_set(),
                 category_labels=["news"],
                 visual_format_labels=["post_news"],
                 strategy_labels=["awareness"],
@@ -76,7 +62,6 @@ class AsyncInferenceTests(unittest.IsolatedAsyncioTestCase):
         ):
             result = await async_classify_post(
                 post=_post(),
-                prompts=_prompt_set(),
                 category_labels=["news"],
                 visual_format_labels=["post_news"],
                 strategy_labels=["awareness"],

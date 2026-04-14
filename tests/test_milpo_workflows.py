@@ -2,9 +2,7 @@ from __future__ import annotations
 
 import argparse
 import unittest
-from unittest.mock import AsyncMock, MagicMock, patch
-
-from milpo.inference import PostInput
+from unittest.mock import MagicMock, patch
 
 
 class BaselineWorkflowTests(unittest.IsolatedAsyncioTestCase):
@@ -12,8 +10,6 @@ class BaselineWorkflowTests(unittest.IsolatedAsyncioTestCase):
     @patch("milpo.workflows.baseline.store_results")
     @patch("milpo.workflows.baseline.async_classify_batch")
     @patch("milpo.workflows.baseline.build_labels")
-    @patch("milpo.workflows.baseline.build_prompt_set")
-    @patch("milpo.workflows.baseline.load_prompt_bundle")
     @patch("milpo.workflows.baseline.sign_all_posts_media")
     @patch("milpo.workflows.baseline.create_run")
     @patch("milpo.workflows.baseline.get_conn")
@@ -22,8 +18,6 @@ class BaselineWorkflowTests(unittest.IsolatedAsyncioTestCase):
         mock_get_conn,
         mock_create_run,
         mock_sign_media,
-        mock_load_prompt_bundle,
-        mock_build_prompt_set,
         mock_build_labels,
         mock_async_classify_batch,
         mock_store_results,
@@ -35,22 +29,11 @@ class BaselineWorkflowTests(unittest.IsolatedAsyncioTestCase):
             "caption": "caption",
             "media_type": "IMAGE",
             "media_product_type": "FEED",
+            "posted_at": None,
         }]
         mock_get_conn.return_value = conn
         mock_create_run.return_value = 11
         mock_sign_media.return_value = {1: [("https://example.com/img.jpg", "IMAGE")]}
-        mock_load_prompt_bundle.return_value = (
-            {
-                ("descriptor", "FEED"): {"content": "desc"},
-                ("descriptor", "REELS"): {"content": "desc-r"},
-                ("category", None): {"content": "cat"},
-                ("visual_format", "FEED"): {"content": "vf"},
-                ("visual_format", "REELS"): {"content": "vf-r"},
-                ("strategy", None): {"content": "str"},
-            },
-            {("descriptor", "FEED"): 1},
-        )
-        mock_build_prompt_set.return_value = MagicMock()
         mock_build_labels.return_value = {
             "category": ["news"],
             "visual_format": ["post_news"],
@@ -65,7 +48,6 @@ class BaselineWorkflowTests(unittest.IsolatedAsyncioTestCase):
         from milpo.workflows.baseline import run_baseline
 
         run_id = await run_baseline(argparse.Namespace(
-            prompts="v0",
             split="test",
             since=None,
             eval_set=None,
@@ -73,7 +55,6 @@ class BaselineWorkflowTests(unittest.IsolatedAsyncioTestCase):
         ))
 
         self.assertEqual(run_id, 11)
-        mock_build_prompt_set.assert_called()
         mock_build_labels.assert_called()
         mock_store_results.assert_called_once()
         mock_finish_run.assert_called_once()

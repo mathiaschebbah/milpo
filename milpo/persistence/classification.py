@@ -2,26 +2,17 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 
 from milpo.db import store_api_call, store_prediction
 from milpo.inference import ApiCallLog, PipelineResult, PostInput
-
-PromptIdMap = Mapping[tuple[str, str | None], int]
-
-
-def resolve_prompt_id(prompt_ids: PromptIdMap, agent: str, scope: str | None) -> int | None:
-    scope_key = scope if agent in ("descriptor", "visual_format") else None
-    return prompt_ids.get((agent, scope_key)) or prompt_ids.get((agent, None))
 
 
 def persist_pipeline_predictions(
     conn,
     *,
     post_id: int,
-    scope: str,
     result: PipelineResult,
-    prompt_ids: PromptIdMap,
     run_id: int,
     store_descriptor: bool = True,
 ) -> None:
@@ -29,9 +20,6 @@ def persist_pipeline_predictions(
     confidences = getattr(result, "confidences", {}) or {}
     reasonings = getattr(result, "reasonings", {}) or {}
     for axis in ("category", "visual_format", "strategy"):
-        prompt_id = resolve_prompt_id(prompt_ids, axis, scope)
-        if prompt_id is None:
-            continue
         raw: dict = {
             "confidence": confidences.get(axis),
             "reasoning": reasonings.get(axis),
@@ -42,45 +30,40 @@ def persist_pipeline_predictions(
             conn,
             post_id,
             axis,
-            prompt_id,
-            getattr(pred, axis),
+            prompt_version_id=None,
+            predicted_value=getattr(pred, axis),
             raw_response=raw,
             simulation_run_id=run_id,
         )
 
     if store_descriptor:
-        desc_prompt_id = resolve_prompt_id(prompt_ids, "descriptor", scope)
-        if desc_prompt_id is not None:
-            store_prediction(
-                conn,
-                post_id,
-                "descriptor",
-                desc_prompt_id,
-                "features_extracted",
-                raw_response={"text": pred.features},
-                simulation_run_id=run_id,
-            )
+        store_prediction(
+            conn,
+            post_id,
+            "descriptor",
+            prompt_version_id=None,
+            predicted_value="features_extracted",
+            raw_response={"text": pred.features},
+            simulation_run_id=run_id,
+        )
 
 
 def persist_api_calls(
     conn,
     *,
     post_id: int | None,
-    scope: str | None,
     api_calls: Sequence[ApiCallLog],
-    prompt_ids: PromptIdMap,
     run_id: int,
     call_type: str,
 ) -> int:
     total_api = 0
     for call in api_calls:
-        prompt_id = resolve_prompt_id(prompt_ids, call.agent, scope)
         store_api_call(
             conn,
             call_type=call_type,
             agent=call.agent,
             model_name=call.model,
-            prompt_version_id=prompt_id,
+            prompt_version_id=None,
             ig_media_id=post_id,
             input_tokens=call.input_tokens,
             output_tokens=call.output_tokens,
@@ -97,7 +80,6 @@ def persist_pipeline_result(
     *,
     post: PostInput,
     result: PipelineResult,
-    prompt_ids: PromptIdMap,
     run_id: int,
     call_type: str = "classification",
     store_descriptor: bool = True,
@@ -105,18 +87,14 @@ def persist_pipeline_result(
     persist_pipeline_predictions(
         conn,
         post_id=post.ig_media_id,
-        scope=post.media_product_type,
         result=result,
-        prompt_ids=prompt_ids,
         run_id=run_id,
         store_descriptor=store_descriptor,
     )
     return persist_api_calls(
         conn,
         post_id=post.ig_media_id,
-        scope=post.media_product_type,
         api_calls=result.api_calls,
-        prompt_ids=prompt_ids,
         run_id=run_id,
         call_type=call_type,
     )
@@ -126,7 +104,6 @@ def store_results(
     conn,
     results: Sequence[PipelineResult],
     post_inputs: Sequence[PostInput],
-    prompt_ids: PromptIdMap,
     run_id: int,
 ) -> tuple[dict[str, int], int]:
     """Stocke toutes les prédictions et api_calls d'un lot baseline."""
@@ -147,7 +124,6 @@ def store_results(
                 caption=None,
             ),
             result=result,
-            prompt_ids=prompt_ids,
             run_id=run_id,
         )
         for axis in ("category", "visual_format", "strategy"):

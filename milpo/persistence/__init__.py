@@ -6,7 +6,6 @@ from .classification import (
     persist_api_calls,
     persist_pipeline_predictions,
     persist_pipeline_result,
-    resolve_prompt_id,
     store_results,
 )
 from .runs import (
@@ -28,6 +27,5 @@ __all__ = [
     "persist_api_calls",
     "persist_pipeline_predictions",
     "persist_pipeline_result",
-    "resolve_prompt_id",
     "store_results",
 ]

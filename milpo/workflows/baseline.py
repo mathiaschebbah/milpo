@@ -1,4 +1,4 @@
-"""Workflow d'évaluation MILPO sur le split test."""
+"""Workflow d'évaluation MILPO sur un split annoté ou un eval_set."""
 
 from __future__ import annotations
 
@@ -12,12 +12,7 @@ from milpo.db import get_conn, load_post_media, load_posts_media
 from milpo.gcs import sign_all_posts_media
 from milpo.inference import PostInput
 from milpo.persistence import create_run, finish_run, store_results
-from milpo.prompting import (
-    build_labels,
-    build_prompt_set,
-    load_prompt_bundle,
-    prompt_contents_from_records,
-)
+from milpo.prompting import build_labels
 
 logging.basicConfig(
     level=logging.INFO,
@@ -29,28 +24,9 @@ logging.getLogger("openai").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 log = logging.getLogger("baseline")
 
-RUN_LABELS = {
-    "v0": ("B0", "v0 humain"),
-    "active": ("BN", "actifs MILPO"),
-    "dspy_constrained": ("B_dspy_in_milpo_constrained", "DSPy MIPROv2 contraint"),
-    "dspy_free": ("B_dspy_in_milpo_free", "DSPy MIPROv2 libre"),
-}
-
-
-
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Évalue la pipeline MILPO sur un split annoté")
-    parser.add_argument(
-        "--prompts",
-        choices=tuple(RUN_LABELS.keys()),
-        default="v0",
-        help=(
-            "Jeu de prompts à charger depuis la BDD. "
-            "v0=humains seedés, active=actifs MILPO, "
-            "dspy_constrained/dspy_free=issus de related_work/dspy_baseline."
-        ),
-    )
     parser.add_argument(
         "--split",
         choices=("test", "dev"),
@@ -86,13 +62,12 @@ def build_parser() -> argparse.ArgumentParser:
 async def run_baseline(args) -> int:
     conn = get_conn()
     t0 = time.monotonic()
-    run_label, prompt_label = RUN_LABELS[args.prompts]
 
     suffix = args.eval_set or args.split
     if args.since:
         suffix = f"{suffix}_since_{args.since}"
     log.info("=" * 55)
-    log.info("%s — Évaluation %s sur %s", run_label, prompt_label, suffix)
+    log.info("MILPO — Évaluation ASSIST sur %s", suffix)
     log.info("=" * 55)
 
     query_params: dict = {}
@@ -140,14 +115,12 @@ async def run_baseline(args) -> int:
 
     is_e2e = args.e2e
     e2e_model = MODEL_CLASSIFIER_VISUAL_FORMAT if is_e2e else None
-    if is_e2e:
-        suffix = f"e2e_{suffix}"
+    run_suffix = f"e2e_{suffix}" if is_e2e else suffix
 
     run_id = create_run(conn, {
-        "name": f"{run_label}_{args.prompts}_{suffix}",
+        "name": f"ASSIST_{run_suffix}",
         "split": args.split,
         "since": args.since,
-        "prompts": args.prompts,
         "e2e": args.e2e,
         "models": {
             "descriptor_feed": MODEL_DESCRIPTOR_FEED,
@@ -187,15 +160,9 @@ async def run_baseline(args) -> int:
     reels = len(post_inputs) - feed
     log.info("Prêts : %d (FEED %d / REELS %d) — %d skippés", len(post_inputs), feed, reels, skipped)
 
-    prompt_records, prompt_ids = load_prompt_bundle(conn, args.prompts)
-    prompt_contents = prompt_contents_from_records(prompt_records)
-    prompts_by_scope = {
-        scope: build_prompt_set(conn, scope, prompt_contents)
-        for scope in ("FEED", "REELS")
-    }
     labels_by_scope = {scope: build_labels(conn, scope) for scope in ("FEED", "REELS")}
 
-    log.info("Classification en cours%s...", " (E2E)" if args.e2e else "")
+    log.info("Classification en cours%s...", " (E2E)" if is_e2e else "")
 
     def on_progress(done: int, total: int, errors: int) -> None:
         elapsed = time.monotonic() - t0
@@ -212,12 +179,11 @@ async def run_baseline(args) -> int:
             flush=True,
         )
 
-    if args.e2e:
+    if is_e2e:
         from milpo.e2e_inference import async_classify_e2e_batch
 
         results = await async_classify_e2e_batch(
             posts=post_inputs,
-            prompts_by_scope=prompts_by_scope,
             labels_by_scope=labels_by_scope,
             model=e2e_model,
             max_concurrent=10,
@@ -226,7 +192,6 @@ async def run_baseline(args) -> int:
     else:
         results = await async_classify_batch(
             posts=post_inputs,
-            prompts_by_scope=prompts_by_scope,
             labels_by_scope=labels_by_scope,
             max_concurrent_api=20,
             max_concurrent_posts=10,
@@ -237,7 +202,7 @@ async def run_baseline(args) -> int:
     log.info("Classifiés : %d / %d (erreurs : %d)", len(results), len(post_inputs), errors)
 
     log.info("Stockage en BDD...")
-    matches, total_api = store_results(conn, results, post_inputs, prompt_ids, run_id)
+    matches, total_api = store_results(conn, results, post_inputs, run_id)
     n = len(results)
     acc = {axis: value / n if n else 0 for axis, value in matches.items()}
 
@@ -256,7 +221,7 @@ async def run_baseline(args) -> int:
 
     log.info("")
     log.info("=" * 55)
-    log.info("RÉSULTATS %s", run_label)
+    log.info("RÉSULTATS MILPO")
     log.info("=" * 55)
     log.info("  Posts          : %d", n)
     log.info("  Appels API     : %d", total_api)
@@ -268,7 +233,7 @@ async def run_baseline(args) -> int:
     log.info("  Accuracy stratégie     : %.1f%% (%d/%d)", acc["strategy"] * 100, matches["strategy"], n)
     log.info("")
     log.info("  simulation_run_id = %d", run_id)
-    log.info("✓ %s terminé", run_label)
+    log.info("✓ MILPO terminé")
     conn.close()
     return run_id
 
