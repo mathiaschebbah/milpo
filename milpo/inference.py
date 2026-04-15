@@ -206,9 +206,13 @@ async def async_call_descriptor(
                 continue
             raise RuntimeError("Descriptor: content vide après retries")
 
+        # Gemini facture reasoning au tarif output mais ne le compte pas
+        # dans completion_tokens. Le vrai output = total - prompt (inclut
+        # reasoning + completion visible). Sans cette correction, le coût
+        # est sous-estimé de ~85% avec reasoning_effort=medium.
         usage = response.usage
         in_tok = usage.prompt_tokens if usage else 0
-        out_tok = usage.completion_tokens if usage else 0
+        out_tok = (usage.total_tokens - usage.prompt_tokens) if usage else 0
         if _on_api_call:
             _on_api_call("descriptor", model, latency_ms, in_tok, out_tok, "ok")
         return raw, ApiCallLog(
@@ -332,9 +336,13 @@ async def async_call_classifier(
                 f"Classifier {axis}: arguments invalides après retries"
             ) from exc
 
+        # Gemini facture reasoning au tarif output mais ne le compte pas
+        # dans completion_tokens. Le vrai output = total - prompt (inclut
+        # reasoning + completion visible). Sans cette correction, le coût
+        # est sous-estimé de ~85% avec reasoning_effort=medium.
         usage = response.usage
         in_tok = usage.prompt_tokens if usage else 0
-        out_tok = usage.completion_tokens if usage else 0
+        out_tok = (usage.total_tokens - usage.prompt_tokens) if usage else 0
         if _on_api_call:
             _on_api_call(axis, model, latency_ms, in_tok, out_tok, "ok")
         return label, confidence, reasoning, ApiCallLog(
@@ -556,9 +564,13 @@ async def async_call_simple(
                 continue
             raise RuntimeError("Simple: arguments invalides après retries") from exc
 
+        # Gemini facture reasoning au tarif output mais ne le compte pas
+        # dans completion_tokens. Le vrai output = total - prompt (inclut
+        # reasoning + completion visible). Sans cette correction, le coût
+        # est sous-estimé de ~85% avec reasoning_effort=medium.
         usage = response.usage
         in_tok = usage.prompt_tokens if usage else 0
-        out_tok = usage.completion_tokens if usage else 0
+        out_tok = (usage.total_tokens - usage.prompt_tokens) if usage else 0
         if _on_api_call:
             _on_api_call("simple", model, latency_ms, in_tok, out_tok, "ok")
         return (
