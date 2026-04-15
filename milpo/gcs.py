@@ -53,7 +53,7 @@ def _get_storage_client() -> Any:
     return _storage_client
 
 
-def sign_url(url: str | None, expiration_minutes: int = 60) -> str | None:
+def sign_url(url: str | None, expiration_minutes: int = 240) -> str | None:
     """Signe une URL GCS. Retourne l'URL originale si pas GCS."""
     if not url or not is_gcs_url(url):
         return url

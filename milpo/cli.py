@@ -36,6 +36,7 @@ from milpo.config import (
     MODEL_DESCRIPTOR_FEED,
     MODEL_DESCRIPTOR_REELS,
     MODEL_SIMPLE,
+    compute_cost_usd,
 )
 from milpo.db import get_conn, load_post_media, load_posts_media
 from milpo.gcs import sign_all_posts_media
@@ -131,6 +132,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Limite le nombre de posts (smoke test).",
     )
     parser.add_argument(
+        "--post",
+        type=str,
+        default=None,
+        help=(
+            "ID(s) de post spécifiques à classifier, séparés par virgule. "
+            "Ex: --post 17923657672548231,18081992584828369. "
+            "Bypass le filtrage --dev/--test/--alpha : prend les posts tels quels si annotés."
+        ),
+    )
+    parser.add_argument(
         "--since",
         type=str,
         default=None,
@@ -200,9 +211,28 @@ _GT_JOINS = """
 """
 
 
-def _load_posts(conn, dataset: str, since: str | None, limit: int | None) -> list[dict]:
+def _load_posts(
+    conn,
+    dataset: str,
+    since: str | None,
+    limit: int | None,
+    post_ids: list[int] | None = None,
+) -> list[dict]:
     """Charge les posts annotés d'un dataset, avec leur ground truth."""
     params: dict = {}
+    if post_ids:
+        # Mode ciblé : on ignore dataset/since/limit et on prend les IDs fournis.
+        query = f"""
+            SELECT {_BASE_SELECT}
+            FROM posts p
+            {_GT_JOINS}
+            WHERE p.ig_media_id = ANY(%(ids)s)
+              AND a.visual_format_id IS NOT NULL
+            ORDER BY p.timestamp
+        """
+        params["ids"] = post_ids
+        return conn.execute(query, params).fetchall()
+
     if dataset == "alpha":
         query = f"""
             SELECT {_BASE_SELECT}
@@ -221,6 +251,7 @@ def _load_posts(conn, dataset: str, since: str | None, limit: int | None) -> lis
             {_GT_JOINS}
             WHERE sp.split = %(split)s
               AND a.visual_format_id IS NOT NULL
+              AND a.doubtful = false
         """
         params["split"] = dataset
 
@@ -303,7 +334,12 @@ async def run_classification(args) -> int:
     log.info("MILPO classification — %s", suffix)
     log.info("=" * 55)
 
-    raw_posts = _load_posts(conn, dataset, args.since, args.limit)
+    post_ids = None
+    if args.post:
+        post_ids = [int(pid.strip()) for pid in args.post.split(",") if pid.strip()]
+        log.info("Mode ciblé : %d post(s) demandés", len(post_ids))
+
+    raw_posts = _load_posts(conn, dataset, args.since, args.limit, post_ids=post_ids)
     log.info("Posts chargés : %d", len(raw_posts))
 
     gt_by_post = {
@@ -384,7 +420,7 @@ async def run_classification(args) -> int:
             posts=post_inputs,
             labels_by_scope=labels_by_scope,
             max_concurrent_api=20,
-            max_concurrent_posts=5,
+            max_concurrent_posts=10,
             on_progress=on_progress,
             descriptor_model=resolved_models["descriptor"],
             classifier_model=resolved_models["classifier"],
@@ -395,7 +431,7 @@ async def run_classification(args) -> int:
             posts=post_inputs,
             labels_by_scope=labels_by_scope,
             model=resolved_models["simple"] or MODEL_SIMPLE,
-            max_concurrent=5,
+            max_concurrent=10,
             on_progress=on_progress,
         )
 
@@ -411,6 +447,17 @@ async def run_classification(args) -> int:
     n = len(results)
     total_api = sum(len(result.api_calls) for result in results)
     matches = _compute_matches_in_memory(results, gt_by_post)
+    total_in = sum(call.input_tokens for r in results for call in r.api_calls)
+    total_out = sum(call.output_tokens for r in results for call in r.api_calls)
+    cost_usd = 0.0
+    unknown_models: set[str] = set()
+    for r in results:
+        for call in r.api_calls:
+            c = compute_cost_usd(call.model, call.input_tokens, call.output_tokens)
+            if c is None:
+                unknown_models.add(call.model)
+            else:
+                cost_usd += c
 
     if not args.no_persist and run_id is not None:
         log.info("Stockage en BDD...")
@@ -426,13 +473,11 @@ async def run_classification(args) -> int:
                 "accuracy_strategy": acc["strategy"],
                 "prompt_iterations": None,
                 "total_api_calls": total_api,
-                "total_cost_usd": None,
+                "total_cost_usd": round(cost_usd, 4) if cost_usd else None,
             },
         )
 
     elapsed = time.monotonic() - t0
-    total_in = sum(call.input_tokens for r in results for call in r.api_calls)
-    total_out = sum(call.output_tokens for r in results for call in r.api_calls)
 
     log.info("")
     log.info("=" * 55)
@@ -448,6 +493,8 @@ async def run_classification(args) -> int:
     log.info("  Posts          : %d", n)
     log.info("  Appels API     : %d", total_api)
     log.info("  Tokens         : %s in / %s out", f"{total_in:,}", f"{total_out:,}")
+    log.info("  Coût           : $%.3f%s", cost_usd,
+             f" (modèles sans prix : {sorted(unknown_models)})" if unknown_models else "")
     log.info("  Durée          : %.0fs (%.1f min)", elapsed, elapsed / 60)
     if n:
         log.info("")

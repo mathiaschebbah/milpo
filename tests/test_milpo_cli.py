@@ -175,6 +175,7 @@ class RunClassificationWiringTests(unittest.IsolatedAsyncioTestCase):
                 since=None,
                 no_persist=False,
                 model=None,
+                post=None,
             )
         )
 
@@ -236,6 +237,7 @@ class RunClassificationWiringTests(unittest.IsolatedAsyncioTestCase):
                 since=None,
                 no_persist=True,
                 model=None,
+                post=None,
             )
         )
 

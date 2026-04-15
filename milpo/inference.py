@@ -109,14 +109,16 @@ def get_async_client() -> AsyncOpenAI:
         raise RuntimeError(
             "Aucune clé API configurée (GOOGLE_API_KEY ou OPENROUTER_API_KEY)."
         )
-    # Timeout HTTP client : 30s. Google AI throttle silencieusement certaines
-    # requêtes multimodales en concurrence (socket pendant sans 429 ni erreur).
-    # À 30s + 3 retries avec backoff exponentiel (1+2+4s), un hang est coupé
-    # en ~97s au lieu de ~367s avec l'ancien timeout 120s.
+    # Timeout HTTP client : 60s. Compromise entre :
+    # - absorber les posts légitimement lourds (carousels 10+ images) qui
+    #   peuvent prendre 30-50s côté Gemini multimodal,
+    # - couper les hangs silencieux de Google AI (socket pendant sans 429)
+    #   avant que le per_post_timeout (480s) kicke.
+    # Avec 3 retries + backoff (1+2+4s), un post bloqué termine en ~190s max.
     return AsyncOpenAI(
         base_url=LLM_BASE_URL,
         api_key=LLM_API_KEY,
-        timeout=30.0,
+        timeout=60.0,
     )
 
 
@@ -231,7 +233,7 @@ async def async_call_classifier(
     semaphore: asyncio.Semaphore,
     posted_at: datetime | None = None,
     temperature: float = 0.0,
-    reasoning_effort: str = "high",
+    reasoning_effort: str = "low",
 ) -> tuple[str, str, str, ApiCallLog]:
     """Appelle un classifieur text-only via tool calling forcé.
 
@@ -464,7 +466,7 @@ async def async_call_simple(
     strat_labels: list[str],
     semaphore: asyncio.Semaphore,
     temperature: float = 0.0,
-    reasoning_effort: str = "high",
+    reasoning_effort: str = "low",
 ) -> tuple[dict[str, str], str, str, ApiCallLog]:
     """Appelle le classifieur simple multimodal (1 appel → 3 labels).
 

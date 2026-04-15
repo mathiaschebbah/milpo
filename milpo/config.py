@@ -42,6 +42,35 @@ MODEL_CLASSIFIER_VISUAL_FORMAT = os.environ.get(
 # difficile en plus des images.
 MODEL_SIMPLE = os.environ.get("MILPO_MODEL_SIMPLE", MODEL_CLASSIFIER_VISUAL_FORMAT)
 
+
+# Prix par modèle en $/M tokens (input, output) — tier Standard, text/image/video.
+# Sources : https://ai.google.dev/gemini-api/docs/pricing (Gemini 3 family)
+# + Anthropic pricing. À mettre à jour si les providers changent leurs tarifs.
+MODEL_PRICES_USD_PER_M: dict[str, tuple[float, float]] = {
+    # Gemini 3 family (Standard tier)
+    "gemini-3.1-flash-lite-preview": (0.25, 1.50),
+    "gemini-3-flash-preview": (0.50, 3.00),
+    "gemini-3.1-flash": (0.50, 3.00),
+    "gemini-3.1-pro-preview": (2.00, 12.00),       # prompts ≤ 200k tokens
+    # Gemini 2.5 (older)
+    "gemini-2.5-flash-lite": (0.10, 0.40),
+    "gemini-2.5-flash": (0.30, 2.50),
+    "gemini-2.5-pro": (1.25, 10.00),
+    # Anthropic (pour oracle cascade éventuel)
+    "claude-sonnet-4-6": (3.00, 15.00),
+    "claude-opus-4-6": (15.00, 75.00),
+    "claude-haiku-4-5-20251001": (1.00, 5.00),
+}
+
+
+def compute_cost_usd(model: str, input_tokens: int, output_tokens: int) -> float | None:
+    """Retourne le coût USD d'un appel LLM, ou None si prix inconnu pour le modèle."""
+    price = MODEL_PRICES_USD_PER_M.get(model)
+    if price is None:
+        return None
+    in_price, out_price = price
+    return (input_tokens * in_price + output_tokens * out_price) / 1_000_000
+
 # Conservée uniquement parce que `related_work/dspy_baseline/optimize.py`
 # l'utilise pour son proposer model (et pour sa task LM OpenAI-compatible).
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
