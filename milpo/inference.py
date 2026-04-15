@@ -115,16 +115,16 @@ def get_async_client() -> AsyncOpenAI:
         raise RuntimeError(
             "Aucune clé API configurée (GOOGLE_API_KEY ou OPENROUTER_API_KEY)."
         )
-    # Timeout HTTP client : 120s. Calibré pour reasoning_effort=medium :
-    # - classifier text medium : ~15-30s
-    # - simple multimodal medium : ~30-60s
-    # - carousels multimodaux lourds (10+ images) en medium : jusqu'à 90s
-    # Coupure des hangs silencieux Google AI avant per_post_timeout (600s).
-    # Avec 3 retries + backoff (1+2+4s), un post bloqué termine en ~370s max.
+    # Timeout HTTP client : 60s. Calibré pour reasoning_effort=low :
+    # - classifier text : 3-10s
+    # - simple multimodal : ~14s (smoke)
+    # - carousels multimodaux lourds (10+ images) : jusqu'à 30-50s
+    # Coupure des hangs silencieux Google AI avant per_post_timeout (480s).
+    # Avec 3 retries + backoff (1+2+4s), un post bloqué termine en ~190s max.
     return AsyncOpenAI(
         base_url=LLM_BASE_URL,
         api_key=LLM_API_KEY,
-        timeout=120.0,
+        timeout=60.0,
     )
 
 
@@ -246,7 +246,7 @@ async def async_call_classifier(
     semaphore: asyncio.Semaphore,
     posted_at: datetime | None = None,
     temperature: float = 0.0,
-    reasoning_effort: str = "medium",
+    reasoning_effort: str = "low",
 ) -> tuple[str, str, str, ApiCallLog]:
     """Appelle un classifieur text-only via tool calling forcé.
 
@@ -485,7 +485,7 @@ async def async_call_simple(
     strat_labels: list[str],
     semaphore: asyncio.Semaphore,
     temperature: float = 0.0,
-    reasoning_effort: str = "medium",
+    reasoning_effort: str = "low",
 ) -> tuple[dict[str, str], str, str, ApiCallLog]:
     """Appelle le classifieur simple multimodal (1 appel → 3 labels).
 
@@ -664,7 +664,7 @@ async def async_classify_alma_batch(
     max_concurrent_api: int = 20,
     max_concurrent_posts: int = 5,
     on_progress: Any = None,
-    per_post_timeout: float = 600.0,
+    per_post_timeout: float = 480.0,
     descriptor_model: str | None = None,
     classifier_model: str | None = None,
     classifier_vf_model: str | None = None,
@@ -728,7 +728,7 @@ async def async_classify_simple_batch(
     model: str = MODEL_SIMPLE,
     max_concurrent: int = 5,
     on_progress: Any = None,
-    per_post_timeout: float = 600.0,
+    per_post_timeout: float = 480.0,
 ) -> list[PipelineResult]:
     """Batch --simple : 1 appel multimodal ASSIST par post (3 labels en une fois)."""
     client = get_async_client()
