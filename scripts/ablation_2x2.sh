@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Ablation : mode (alma, simple) × tier modèle (flash-lite, flash, 2.5-flash)
-# × dataset (alpha, test). 12 runs si complet, 10 en excluant simple 2.5-flash.
+# Ablation 2×2×2 : mode (alma, simple) × tier modèle (flash-lite, flash)
+# × dataset (alpha, test). 8 runs.
 #
-# Lancés séquentiellement pour éviter le throttling Google AI.
+# YAMLs figés (vault commit e1de3d2). Lancés séquentiellement.
 
 set -uo pipefail
 
@@ -15,19 +15,17 @@ RUNS=(
   # Alpha
   "--alma   --alpha --model flash-lite"
   "--alma   --alpha --model flash"
-  "--alma   --alpha --model 2.5-flash"
   "--simple --alpha --model flash-lite"
   "--simple --alpha --model flash"
   # Test
   "--alma   --test  --model flash-lite"
   "--alma   --test  --model flash"
-  "--alma   --test  --model 2.5-flash"
   "--simple --test  --model flash-lite"
   "--simple --test  --model flash"
 )
 
 echo "════════════════════════════════════════════════════════════"
-echo "  Ablation ${#RUNS[@]} runs séquentiels"
+echo "  Ablation 2×2×2 — ${#RUNS[@]} runs séquentiels"
 echo "  logs : $LOG_DIR"
 echo "════════════════════════════════════════════════════════════"
 echo
@@ -61,7 +59,6 @@ echo "  ✓ Ablation terminée en ${total_elapsed}s ($((total_elapsed / 60)) min
 echo "  Résumé des runs et accuracies dans $LOG_DIR"
 echo "════════════════════════════════════════════════════════════"
 
-# Résumé rapide des accuracies depuis les logs
 echo
 echo "  Résumé accuracies :"
 for log in "$LOG_DIR"/*.log; do

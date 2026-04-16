@@ -52,18 +52,14 @@ from milpo.prompting import build_labels
 # Modèles de référence
 _FLASH_LITE = "gemini-3.1-flash-lite-preview"
 _FLASH = "gemini-3-flash-preview"
-_25_FLASH = "gemini-2.5-flash"
-
-# Tiers de modèles pour le flag --model (ablation).
+# Tiers de modèles pour le flag --model (ablation 2×2).
 #
-# - flash-lite : tout en gemini-3.1-flash-lite-preview.
+# - flash-lite : tout en gemini-3.1-flash-lite-preview ($0.25/$1.50).
 # - flash      : pour --alma, flash UNIQUEMENT sur visual_format (l'axe
 #                difficile, 57 classes long-tail) ; descripteur et
 #                classifieurs category/strategy restent en flash-lite.
 #                Pour --simple, l'unique appel multimodal est en flash.
-# - 2.5-flash  : tout en gemini-2.5-flash (génération précédente, point
-#                Pareto intermédiaire entre flash-lite et flash).
-MODEL_TIERS: tuple[str, ...] = ("flash-lite", "flash", "2.5-flash")
+MODEL_TIERS: tuple[str, ...] = ("flash-lite", "flash")
 
 
 def _resolve_tier(mode: str, tier: str) -> dict[str, str]:
@@ -81,13 +77,6 @@ def _resolve_tier(mode: str, tier: str) -> dict[str, str]:
             "classifier": _FLASH_LITE,   # category + strategy légers
             "classifier_vf": _FLASH,     # seul axe qui swap vers Flash
             "simple": _FLASH,            # unique appel multimodal E2E
-        }
-    if tier == "2.5-flash":
-        return {
-            "descriptor": _25_FLASH,
-            "classifier": _25_FLASH,
-            "classifier_vf": _25_FLASH,
-            "simple": _25_FLASH,
         }
     raise ValueError(f"Tier inconnu : {tier!r}")
 
