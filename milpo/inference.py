@@ -110,6 +110,18 @@ def set_api_call_hook(hook):
     _on_api_call = hook
 
 
+def get_async_client_openrouter() -> AsyncOpenAI:
+    """Client OpenRouter pour les classifiers text-only (Qwen, etc.)."""
+    from milpo.config import OPENROUTER_API_KEY
+    if not OPENROUTER_API_KEY:
+        raise RuntimeError("OPENROUTER_API_KEY non configurée.")
+    return AsyncOpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=OPENROUTER_API_KEY,
+        timeout=60.0,
+    )
+
+
 def get_async_client() -> AsyncOpenAI:
     if not LLM_API_KEY:
         raise RuntimeError(
@@ -381,6 +393,7 @@ async def _async_classify_from_features(
     semaphore: asyncio.Semaphore,
     classifier_model: str | None = None,
     classifier_vf_model: str | None = None,
+    classifier_client: AsyncOpenAI | None = None,
 ) -> PipelineResult:
     """Lance les 3 classifieurs text-only en parallèle à partir de features déjà calculées."""
     post_scope = post.media_product_type.upper()
@@ -392,13 +405,12 @@ async def _async_classify_from_features(
 
     base_classifier = classifier_model or MODEL_CLASSIFIER
     vf_classifier = classifier_vf_model or classifier_model or MODEL_CLASSIFIER_VISUAL_FORMAT
+    clf_client = classifier_client or client
 
     async def _classify(axis: str, labels: list[str]):
-        # visual_format peut utiliser un modèle plus capable (override env) :
-        # c'est l'axe le plus difficile (42 classes long-tail, règles subtiles).
         model_for_axis = vf_classifier if axis == "visual_format" else base_classifier
         label, conf, reasoning, clf_log = await async_call_classifier(
-            client,
+            clf_client,
             model_for_axis,
             axis,
             labels,
@@ -449,6 +461,7 @@ async def async_classify_post_alma(
     descriptor_model: str | None = None,
     classifier_model: str | None = None,
     classifier_vf_model: str | None = None,
+    classifier_client: AsyncOpenAI | None = None,
 ) -> PipelineResult:
     """Pipeline ASSIST complet (Alma + 3 classifieurs) pour un post."""
     routing = route(post.media_product_type)
@@ -472,6 +485,7 @@ async def async_classify_post_alma(
         semaphore=semaphore,
         classifier_model=classifier_model,
         classifier_vf_model=classifier_vf_model,
+        classifier_client=classifier_client,
     )
 
 
@@ -671,6 +685,7 @@ async def async_classify_alma_batch(
     descriptor_model: str | None = None,
     classifier_model: str | None = None,
     classifier_vf_model: str | None = None,
+    classifier_client: AsyncOpenAI | None = None,
 ) -> list[PipelineResult]:
     """Batch ASSIST : Alma (multimodal) + 3 classifieurs text-only par post."""
     client = get_async_client()
@@ -701,6 +716,7 @@ async def async_classify_alma_batch(
                         descriptor_model=descriptor_model,
                         classifier_model=classifier_model,
                         classifier_vf_model=classifier_vf_model,
+                        classifier_client=classifier_client,
                     ),
                     timeout=per_post_timeout,
                 )

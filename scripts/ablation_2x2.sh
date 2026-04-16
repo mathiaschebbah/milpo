@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
-# Ablation 2×2×2 : mode (alma, simple) × tier modèle (flash-lite, flash)
-# × dataset (alpha, test). 8 runs.
-#
-# YAMLs figés (vault commit e1de3d2). Lancés séquentiellement.
+# Ablation : mode (alma, simple) × tier (flash-lite, flash, qwen) × dataset (alpha, test)
+# 10 runs : 8 runs Google AI + 2 runs alma×qwen (classifiers OpenRouter).
+# simple×qwen exclu (simple = 1 appel multimodal, Qwen = text-only).
 
 set -uo pipefail
 
@@ -12,20 +11,22 @@ LOG_DIR="/tmp/ablation_$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$LOG_DIR"
 
 RUNS=(
-  # Alpha
+  # Alpha — 5 configs
   "--alma   --alpha --model flash-lite"
   "--alma   --alpha --model flash"
+  "--alma   --alpha --model qwen"
   "--simple --alpha --model flash-lite"
   "--simple --alpha --model flash"
-  # Test
+  # Test — 5 configs
   "--alma   --test  --model flash-lite"
   "--alma   --test  --model flash"
+  "--alma   --test  --model qwen"
   "--simple --test  --model flash-lite"
   "--simple --test  --model flash"
 )
 
 echo "════════════════════════════════════════════════════════════"
-echo "  Ablation 2×2×2 — ${#RUNS[@]} runs séquentiels"
+echo "  Ablation — ${#RUNS[@]} runs séquentiels"
 echo "  logs : $LOG_DIR"
 echo "════════════════════════════════════════════════════════════"
 echo
@@ -56,14 +57,12 @@ done
 total_elapsed=$(($(date +%s) - total_start))
 echo "════════════════════════════════════════════════════════════"
 echo "  ✓ Ablation terminée en ${total_elapsed}s ($((total_elapsed / 60)) min)"
-echo "  Résumé des runs et accuracies dans $LOG_DIR"
 echo "════════════════════════════════════════════════════════════"
 
 echo
-echo "  Résumé accuracies :"
+echo "  Résumé :"
 for log in "$LOG_DIR"/*.log; do
   name=$(basename "$log" .log)
-  acc=$(grep -E "Accuracy|simulation_run_id" "$log" | tr -d '\r' | tail -4 | tr '\n' ' ')
-  echo "    $name :"
-  echo "      $acc"
+  acc=$(grep -E "Accuracy|simulation_run_id|Coût" "$log" | tr -d '\r' | tail -5 | tr '\n' ' ')
+  echo "    $name : $acc"
 done

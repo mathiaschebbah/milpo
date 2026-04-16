@@ -52,14 +52,18 @@ from milpo.prompting import build_labels
 # Modèles de référence
 _FLASH_LITE = "gemini-3.1-flash-lite-preview"
 _FLASH = "gemini-3-flash-preview"
-# Tiers de modèles pour le flag --model (ablation 2×2).
+# Tiers de modèles pour le flag --model (ablation).
 #
 # - flash-lite : tout en gemini-3.1-flash-lite-preview ($0.25/$1.50).
-# - flash      : pour --alma, flash UNIQUEMENT sur visual_format (l'axe
-#                difficile, 57 classes long-tail) ; descripteur et
-#                classifieurs category/strategy restent en flash-lite.
+# - flash      : pour --alma, flash UNIQUEMENT sur visual_format ;
+#                descripteur et classifieurs cat/strat restent en flash-lite.
 #                Pour --simple, l'unique appel multimodal est en flash.
-MODEL_TIERS: tuple[str, ...] = ("flash-lite", "flash")
+# - qwen       : descripteur reste Google AI (flash-lite, multimodal) ;
+#                classifiers text-only basculent sur qwen/qwen3.5-flash-02-23
+#                via OpenRouter ($0.10/$0.40). Teste si l'architecture ASSIST
+#                est model-agnostic côté classifier.
+_QWEN = "qwen/qwen3.5-flash-02-23"
+MODEL_TIERS: tuple[str, ...] = ("flash-lite", "flash", "qwen")
 
 
 def _resolve_tier(mode: str, tier: str) -> dict[str, str]:
@@ -77,6 +81,13 @@ def _resolve_tier(mode: str, tier: str) -> dict[str, str]:
             "classifier": _FLASH_LITE,   # category + strategy légers
             "classifier_vf": _FLASH,     # seul axe qui swap vers Flash
             "simple": _FLASH,            # unique appel multimodal E2E
+        }
+    if tier == "qwen":
+        return {
+            "descriptor": _FLASH_LITE,   # multimodal → reste Google AI
+            "classifier": _QWEN,         # text-only → OpenRouter Qwen
+            "classifier_vf": _QWEN,
+            "simple": _FLASH_LITE,       # fallback flash-lite (simple = multimodal)
         }
     raise ValueError(f"Tier inconnu : {tier!r}")
 
@@ -412,6 +423,14 @@ async def run_classification(args) -> int:
         f", modèle {model_tier}" if model_tier else "",
     )
 
+    # Si classifiers sur OpenRouter (tier qwen), créer un 2ème client.
+    clf_client = None
+    clf_model = resolved_models.get("classifier") or ""
+    if "qwen" in clf_model or "openrouter" in clf_model:
+        from milpo.inference import get_async_client_openrouter
+        clf_client = get_async_client_openrouter()
+        log.info("Classifiers via OpenRouter (%s)", clf_model)
+
     if mode == "alma":
         results = await async_classify_alma_batch(
             posts=post_inputs,
@@ -422,6 +441,7 @@ async def run_classification(args) -> int:
             descriptor_model=resolved_models["descriptor"],
             classifier_model=resolved_models["classifier"],
             classifier_vf_model=resolved_models["classifier_vf"],
+            classifier_client=clf_client,
         )
     else:
         results = await async_classify_simple_batch(

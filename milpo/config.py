@@ -56,6 +56,8 @@ MODEL_PRICES_USD_PER_M: dict[str, tuple[float, float]] = {
     "gemini-2.5-flash-lite": (0.10, 0.40),
     "gemini-2.5-flash": (0.30, 2.50),
     "gemini-2.5-pro": (1.25, 10.00),
+    # Qwen (via OpenRouter, Alibaba Cloud)
+    "qwen/qwen3.5-flash-02-23": (0.065, 0.26),
     # Anthropic (pour oracle cascade éventuel)
     "claude-sonnet-4-6": (3.00, 15.00),
     "claude-opus-4-6": (15.00, 75.00),
