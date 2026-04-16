@@ -54,16 +54,17 @@ _FLASH_LITE = "gemini-3.1-flash-lite-preview"
 _FLASH = "gemini-3-flash-preview"
 # Tiers de modèles pour le flag --model (ablation).
 #
-# - flash-lite : tout en gemini-3.1-flash-lite-preview ($0.25/$1.50).
-# - flash      : pour --alma, flash UNIQUEMENT sur visual_format ;
-#                descripteur et classifieurs cat/strat restent en flash-lite.
-#                Pour --simple, l'unique appel multimodal est en flash.
-# - qwen       : descripteur reste Google AI (flash-lite, multimodal) ;
-#                classifiers text-only basculent sur qwen/qwen3.5-flash-02-23
-#                via OpenRouter ($0.10/$0.40). Teste si l'architecture ASSIST
-#                est model-agnostic côté classifier.
+# - flash-lite  : tout en gemini-3.1-flash-lite-preview ($0.25/$1.50).
+# - flash       : pour --alma, flash UNIQUEMENT sur visual_format ;
+#                 descripteur et classifieurs cat/strat restent en flash-lite.
+#                 Pour --simple, l'unique appel multimodal est en flash.
+# - full-flash  : TOUT en gemini-3-flash-preview ($0.50/$3.00).
+#                 Point Pareto haut-droite (max capacité, max coût).
+# - qwen        : descripteur reste Google AI (flash-lite, multimodal) ;
+#                 classifiers text-only basculent sur qwen/qwen3.5-flash-02-23
+#                 via OpenRouter ($0.065/$0.26). Model-agnostic test.
 _QWEN = "qwen/qwen3.5-flash-02-23"
-MODEL_TIERS: tuple[str, ...] = ("flash-lite", "flash", "qwen")
+MODEL_TIERS: tuple[str, ...] = ("flash-lite", "flash", "full-flash", "qwen")
 
 
 def _resolve_tier(mode: str, tier: str) -> dict[str, str]:
@@ -81,6 +82,13 @@ def _resolve_tier(mode: str, tier: str) -> dict[str, str]:
             "classifier": _FLASH_LITE,   # category + strategy légers
             "classifier_vf": _FLASH,     # seul axe qui swap vers Flash
             "simple": _FLASH,            # unique appel multimodal E2E
+        }
+    if tier == "full-flash":
+        return {
+            "descriptor": _FLASH,
+            "classifier": _FLASH,
+            "classifier_vf": _FLASH,
+            "simple": _FLASH,
         }
     if tier == "qwen":
         return {

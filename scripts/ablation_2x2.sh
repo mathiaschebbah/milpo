@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# Ablation : mode (alma, simple) × tier (flash-lite, flash, qwen) × dataset (alpha, test)
-# 10 runs : 8 runs Google AI + 2 runs alma×qwen (classifiers OpenRouter).
-# simple×qwen exclu (simple = 1 appel multimodal, Qwen = text-only).
+# Ablation complète : mode × tier × dataset
+# 12 runs : alma × {flash-lite, flash, full-flash, qwen} × {alpha, test}
+#         + simple × {flash-lite, flash} × {alpha, test}
+# (simple full-flash = simple flash car 1 seul appel, pas dupliqué)
+# (simple qwen exclu : simple = 1 appel multimodal, Qwen = text-only)
 
 set -uo pipefail
 
@@ -11,15 +13,17 @@ LOG_DIR="/tmp/ablation_$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$LOG_DIR"
 
 RUNS=(
-  # Alpha — 5 configs
+  # Alpha — 6 configs
   "--alma   --alpha --model flash-lite"
   "--alma   --alpha --model flash"
+  "--alma   --alpha --model full-flash"
   "--alma   --alpha --model qwen"
   "--simple --alpha --model flash-lite"
   "--simple --alpha --model flash"
-  # Test — 5 configs
+  # Test — 6 configs
   "--alma   --test  --model flash-lite"
   "--alma   --test  --model flash"
+  "--alma   --test  --model full-flash"
   "--alma   --test  --model qwen"
   "--simple --test  --model flash-lite"
   "--simple --test  --model flash"
