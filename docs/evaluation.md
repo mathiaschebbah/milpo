@@ -1,496 +1,179 @@
-# Protocole expérimental
+# Protocole expérimental & Résultats
 
-## Métriques de classification
+> Runs d'ablation : **158 à 169** (BDD `simulation_runs`)
 
-Par axe (visual_format, catégorie, stratégie) et global (3 axes corrects simultanément) :
-- Accuracy
-- F1 macro (insensible au déséquilibre des classes)
-- F1 micro
-- Matrice de confusion
-- Cohen's kappa (accord modèle/humain)
+## 1. Datasets
 
-Rapportés sur 1 run principal (contrainte de coût API). La variance est adressée via les ablations (B=1, 10, 30, 50) qui rejouent la simulation sur les mêmes annotations.
+| Set | Posts | Doubtful exclus | Utilisables | Classes VF | Source |
+|-----|-------|-----------------|-------------|------------|--------|
+| **Alpha** | 390 | 0 | 390 | 57 (40 FEED + 17 REELS) | `eval_sets.set_name='alpha'` |
+| **Test** | 426 | 21 | 405 | 57 | `sample_posts.split='test'` + `doubtful=false` |
 
-## Significativité statistique
+- 3 axes annotés : visual_format (57 classes), category (15 classes), strategy (2 classes)
+- Overlap alpha ∩ test : 108 posts
+- 21 posts test marqués doubtful (4.9%) : cas d'ambiguïté taxonomique irréductible
 
-- Test de McNemar (paire par paire) entre B0 et MILPO vN sur le test set
-- p-values rapportées, seuil alpha = 0.05
+## 2. Design d'ablation
 
-## Protocole B0 → MILPO → BN
+### Facteurs
 
-Le protocole repose sur la comparaison de deux runs sur le **même test set** (437 posts) :
+| Facteur | Niveaux | Variable mesurée |
+|---------|---------|-----------------|
+| **Architecture** | alma (4 appels : percepteur + 3 classifieurs) vs simple (1 appel multimodal) | Impact du découplage percepteur/classifier |
+| **Modèle** | flash-lite ($0.25/$1.50), flash ($0.50/$3.00 VF seul), full-flash ($0.50/$3.00 partout), qwen ($0.065/$0.26 classifiers OpenRouter) | Impact du scaling modèle + model-agnosticism |
+| **Dataset** | alpha vs test | Généralisation / overfitting |
 
-1. **Annotation** : l'humain annote le dev (1 563 posts) en aveugle (sans voir les prédictions)
-2. **B0** (fait) : prompt v0 (écrit à la main) évalué sur test → accuracy baseline
-3. **Simulation MILPO** : replay séquentiel des annotations dev dans l'ordre de présentation. Protocole prequential : le prompt évolue v0 → v1 → ... → vN via le rewriter (B=30, delta=2%, patience=3).
-4. **BN** : prompt vN (dernier prompt actif après convergence) évalué sur test → accuracy finale
-
-La différence BN - B0 est directement attribuable à MILPO. Même test set, même pipeline, même descripteur, mêmes descriptions taxonomiques — seules les instructions I_t changent.
-
-Chaque run est stocké dans `simulation_runs` avec sa config, ses métriques, et son coût. Reproductible.
-
-## Convergence
-
-- Courbe accuracy vs nombre d'annotations (dev uniquement, rolling window de 50 posts)
-- Les moments de rewrite (v0 → v1 → v2...) sont annotés sur la courbe
-- Plateau défini comme : variation < 2% sur les 3 dernières itérations
-- Les blocs de comparaison incumbent/candidate post-rewrite sont évalués explicitement sur le bloc futur commun (`eval_window=30`)
-
-## Fiabilité de l'annotation
-
-- Kappa intra-annotateur (test-retest à l'aveugle, 50+ posts)
-- Kappa inter-annotateur (collaborateur Views, 500+ posts) — si disponible
-
-## Résultats B0 — Baseline zero-shot v0
-
-Exécuté le 2026-04-10. **simulation_run id=23. 437/437 posts classifiés (100% de couverture)**. Configuration : descripteur Gemini 3 Flash Preview pour FEED+REELS (`response_format=json_schema`) avec signaux critiques discriminants (chiffre_dominant, gabarit_views, carousel_nature, interview_setting, montage_recap), classifieurs Qwen 3.5 Flash + tool calling forcé (`tool_choice="auto"`), prompts v0 lockés via [migration 006](../apps/backend/migrations/006_seed_prompts_v0.sql).
-
-### Accuracy globale
+### Configurations (6 × 2 datasets = 12 runs)
 
-| Axe | Accuracy | Correct/Total |
-|-----|----------|---------------|
-| Catégorie (15 classes) | **85.4%** | 373/437 |
-| Visual_format (44 FEED + 16 REELS) | **73.9%** | 323/437 |
-| Stratégie (2 classes) | **95.9%** | 419/437 |
+| Config | Descripteur | Classifiers | Provider |
+|--------|-------------|-------------|----------|
+| alma flash-lite | Google flash-lite | Google flash-lite (×3) | Google AI |
+| alma flash | Google flash-lite | Google flash-lite (cat/strat) + Google flash (VF) | Google AI |
+| alma full-flash | Google flash | Google flash (×3) | Google AI |
+| alma qwen | Google flash-lite | Qwen 3.5 Flash (×3) | Google AI + OpenRouter |
+| simple flash-lite | Google flash-lite (all-in-one) | — | Google AI |
+| simple flash | Google flash (all-in-one) | — | Google AI |
 
-### Accuracy par scope
+## 3. Résultats — Tableau d'ablation
 
-| Axe | FEED (372) | REELS (65) | Δ FEED → REELS |
-|-----|------------|------------|----------------|
-| Catégorie | 87.6% | 72.3% | -15.3 pts |
-| Visual_format | 76.3% | 60.0% | -16.3 pts |
-| Stratégie | 96.2% | 93.8% | -2.4 pts |
+### Alpha (390 posts)
 
-Les REELS sont significativement plus durs que les FEED sur catégorie et visual_format. La stratégie est stable (signal dans la caption, peu importe le scope).
+| Run | Config | VF% | Cat% | Strat% | Coût | Latence | Fiabilité | Posts |
+|-----|--------|-----|------|--------|------|---------|-----------|-------|
+| 158 | alma flash-lite | **83.8** | 92.8 | 96.9 | $3.68 | 7 331s | 100% | 390 |
+| 159 | alma flash | **83.6** | 92.8 | 96.9 | $4.62 | 6 845s | 100% | 390 |
+| 160 | alma full-flash | **86.7** | 93.3 | 96.7 | $7.72 | 10 159s | 100% | 390 |
+| 161 | alma qwen | **82.2** | 93.4 | 95.8 | $2.34 | ≈26 000s | 96.7% | 377 |
+| 162 | simple flash-lite | **...** | ... | ... | ... | ... | ... | ... |
+| 163 | simple flash | **...** | ... | ... | ... | ... | ... | ... |
 
-### Patterns d'erreur principaux (visual_format)
+### Test (405 posts)
 
-| Expected → Predicted | n | Interprétation |
-|---|---|---|
-| post_news → post_mood | 22 | Anciens post_news sans texte en overlay (news dans la caption uniquement). La description taxonomique couvre ce cas — les instructions I_t ne le priorisent pas. |
-| reel_news → reel_mood | 11 | Les REELS sans gabarit Views sont classés reel_mood par défaut. |
-| reel_interview → reel_sitdown | 4 | Confusion entre 2 types d'interview (face caméra assise vs debout/mouvement). |
-| post_chiffre → post_news | 4 | Le classifieur ne priorise pas toujours le chiffre marquant face au texte d'actualité. |
-| post_wrap_up → post_mood | 4 | Recap événement absorbé par mood. |
-| post_news → post_selection | 3 | |
-| post_serie_mood_texte → post_news | 3 | |
-| post_en_savoir_plus_selection → post_selection | 3 | Variante non distinguée. |
+| Run | Config | VF% | Cat% | Strat% | Coût | Latence | Fiabilité | Posts |
+|-----|--------|-----|------|--------|------|---------|-----------|-------|
+| 164 | alma flash-lite | ... | ... | ... | ... | ... | ... | ... |
+| 165 | alma flash | ... | ... | ... | ... | ... | ... | ... |
+| 166 | alma full-flash | ... | ... | ... | ... | ... | ... | ... |
+| 167 | alma qwen | ... | ... | ... | ... | ... | ... | ... |
+| 168 | simple flash-lite | ... | ... | ... | ... | ... | ... | ... |
+| 169 | simple flash | ... | ... | ... | ... | ... | ... | ... |
 
-Ces patterns d'erreur sont des **limitations des prompts classifieurs v0** — c'est exactement ce que la boucle MILPO doit corriger en simulation. La confusion dominante post_news → post_mood (22 erreurs, 5 pts d'accuracy) est la cible prioritaire.
+## 4. Comparaisons « toutes choses égales par ailleurs »
 
-### Visual_format — accuracy par format (≥ 3 occurrences test)
+### 4.1. Impact de l'ARCHITECTURE (à modèle constant)
 
-23 formats ont au moins 3 occurrences dans le test set, classés par fréquence :
+| Modèle constant | simple (1 appel) | alma (4 appels) | Δ architecture | Δ coût |
+|-----------------|-----------------|-----------------|----------------|--------|
+| flash-lite | run 162 | run 158 (83.8%) | ... | +$1.18 |
+| flash | run 163 | run 159 (83.6%) | ... | +$0.62 |
 
-| Format | Scope | Test | OK | Accuracy | Note |
-|--------|-------|------|----|----------|------|
-| post_mood | FEED | 113 | 109 | **96%** | Format dominant, parfaitement classifié |
-| post_news | FEED | 110 | 80 | **73%** | 22 confusions ← post_mood (anciens news sans overlay) |
-| post_chiffre | FEED | 22 | 18 | **82%** | Nettement amélioré grâce au champ chiffre_dominant du descripteur |
-| post_quote | FEED | 21 | 17 | 81% | Bien classifié, signal "guillemets" clair |
-| post_selection | FEED | 20 | 19 | **95%** | Nettement amélioré grâce au champ carousel_nature du descripteur |
-| reel_voix_off | REELS | 17 | 15 | **88%** | Audio bien détecté par le descripteur |
-| reel_news | REELS | 16 | 3 | 19% | Reels sans gabarit Views classés reel_mood |
-| reel_wrap_up | REELS | 12 | 7 | **58%** | Amélioré grâce au champ montage_recap_evenement |
-| reel_interview | REELS | 8 | 3 | 38% | Confusion avec reel_sitdown |
-| post_wrap_up | FEED | 8 | 1 | 13% | Quasi-invisible — absorbé par mood |
-| post_classement | FEED | 7 | 4 | 57% | |
-| post_interview | FEED | 7 | 4 | 57% | |
-| post_sorties_musique | FEED | 7 | 5 | 71% | Bien classifié |
-| post_serie_mood_texte | FEED | 6 | 1 | 17% | |
-| post_en_savoir_plus_selection | FEED | 6 | 0 | 0% | Variante non distinguée |
-| post_en_savoir_plus | FEED | 5 | 0 | 0% | Invisible |
-| post_stills | FEED | 4 | 4 | **100%** | Parfait — screenshots distinctifs |
-| post_article | FEED | 4 | 3 | 75% | |
-| reel_mood | REELS | 3 | 3 | **100%** | |
-| post_playlist_views_essentials | FEED | 3 | 2 | 67% | |
-| post_concours_giveaway | FEED | 3 | 1 | 33% | |
-| post_frise | FEED | 3 | 0 | 0% | Format rare invisible |
-| post_double_selection | FEED | 3 | 1 | 33% | |
+→ Mesure la **productivité marginale de l'architecture** (Pm_A)
 
-**Observation clé** : l'architecture (descripteur Gemini 3 Flash Preview + classifieurs Qwen 3.5 Flash) n'est **pas uniforme** sur les formats :
+### 4.2. Impact du MODÈLE (à architecture constante)
 
-- **FEED dominants** bien ou parfaitement classés (`post_mood` 96%, `post_selection` 95%, `post_chiffre` 82%, `post_quote` 81%, `post_stills` 100%) — signaux visuels clairs, renforcés par les champs discriminants du descripteur.
-- **REELS** bien détectés quand l'audio ou le montage est distinctif (`reel_voix_off` 88%, `reel_mood` 100%, `reel_wrap_up` 58%), plus faibles sans gabarit identifiable (`reel_news` 19%, `reel_interview` 38%).
-- **Confusion dominante** : `post_news → post_mood` (22 erreurs) — c'est la **cible prioritaire pour la boucle MILPO**.
-- **Formats rares invisibles** : `post_en_savoir_plus`, `post_en_savoir_plus_selection`, `post_frise` restent à 0% — absorbés par les formats dominants.
+| Architecture constante | flash-lite | flash | full-flash | qwen |
+|-----------------------|-----------|-------|------------|------|
+| alma | 83.8% ($3.68) | 83.6% ($4.62) | 86.7% ($7.72) | 82.2% ($2.34) |
+| simple | ... | ... | — | — |
 
-### Distribution temporelle des erreurs (visual_format)
+→ Mesure la **productivité marginale du modèle** (Pm_M) et les **rendements marginaux décroissants**
 
-| Année | Posts test | Accuracy vf | Erreurs |
-|-------|-----------|-------------|---------|
-| 2018 | 28 | 78.6% | 6 |
-| 2019 | 13 | **38.5%** | 8 |
-| 2020 | 24 | **58.3%** | 10 |
-| 2021 | 49 | 71.4% | 14 |
-| 2022 | 59 | 76.3% | 14 |
-| 2023 | 77 | 76.6% | 18 |
-| 2024 | 64 | **85.9%** | 9 |
-| 2025 | 86 | 72.1% | 24 |
-| 2026 | 37 | 70.3% | 11 |
+### 4.3. Généralisation (alpha vs test, à config constante)
 
-**Observation** : la taxonomie, construite à partir des formats récents de Views (2024-2025), classifie nettement mieux les posts récents (2024 : 85.9%) que les posts anciens (2019 : 38.5%). Les anciens posts utilisaient des formats moins standardisés qui ne correspondent pas toujours aux gabarits actuels. Ce biais temporel est une limite structurelle de l'approche : la taxonomie capture l'identité visuelle *actuelle* de Views, pas son historique complet.
+→ Gap alpha↔test par config. Runs précédents : gap ≤ 3pp (pas d'overfitting)
 
-### Coût détaillé
+## 5. Analyses micro-économiques prévues
 
-| Agent | Modèle | Appels | Tokens in | Tokens out | Latence moy. |
-|-------|--------|--------|-----------|------------|--------------|
-| Descripteur | Gemini 3 Flash Preview | 437 | 3.51M | 283K | 10.1s |
-| Catégorie | Qwen 3.5 Flash | 437 | 758K | 425K | 7.3s |
-| Visual_format | Qwen 3.5 Flash | 437 | 1.67M | 373K | 6.6s |
-| Stratégie | Qwen 3.5 Flash | 437 | 653K | 201K | 3.5s |
-| **TOTAL** | | **1 748** | **6.60M** | **1.28M** | |
+### 5.1. Frontière coût-performance (Pareto)
 
-### Comparaison empirique avec DSPy MIPROv2 (related_work/dspy_baseline)
+- Axe X : coût par run ($)
+- Axe Y : accuracy VF (%)
+- 6 points par dataset + frontière efficiente
+- Référence : runs historiques 90-101 (pré-ASSIST v5)
 
-Pour positionner MILPO empiriquement face à l'état de l'art générique de l'optimisation de prompts, on lance DSPy MIPROv2 (zero-shot, instructions seulement) sur les **mêmes** 4 classifieurs text-only (`category`, `visual_format` FEED/REELS, `strategy`), avec deux modes : `constrained` (descriptions taxonomiques fixes, apples-to-apples avec MILPO) et `free` (MIPROv2 peut tout réécrire, borne supérieure).
+### 5.2. Fonction de production & Isoquantes
 
-Architecture : DSPy est utilisé **uniquement comme générateur de strings d'instructions** hors-ligne. Les instructions optimisées sont insérées dans `prompt_versions` avec `source='dspy_constrained'` ou `'dspy_free'` (migration 007), puis évaluées via le **runtime MILPO existant** (`run_baseline.py --prompts dspy_*`). La seule variable qui change entre B0 et B_dspy_in_milpo est la string d'instructions — le tool calling, l'async, le parsing, les posts test sont identiques. Voir [`related_work/dspy_baseline/README.md`](../related_work/dspy_baseline/README.md) pour le protocole détaillé.
+```
+Y = f(A, M)
+  Y = accuracy VF (%)
+  A = investissement en architecture (tokens décision = 3 classifiers)
+  M = coût unitaire du modèle ($/M tokens)
+```
 
-#### Tableau de comparaison (à compléter après les runs)
+Isoquantes : courbes de niveau accuracy dans l'espace (A, M). Convexité attendue (TMST décroissant).
 
-| Run | Source instructions | Runtime éval | Catégorie | Visual_format | Stratégie | Coût | Notes |
-|---|---|---|---|---|---|---|---|
-| **B0** (run id=23) | Humain v0 | MILPO | **85,4%** | **73,9%** | **95,9%** | — | Référence |
-| B_dspy_native_constrained | DSPy MIPROv2 | DSPy | ?? | ?? | ?? | ~$1 | Borne native, pas comparable directement à B0 (runtime ≠) |
-| **B_dspy_in_milpo_constrained** | DSPy MIPROv2 | MILPO | ?? | ?? | ?? | ~$2,7 | **Apples-to-apples vs B0** — seule variable : la string d'instructions |
-| B_dspy_native_free | DSPy MIPROv2 (free) | DSPy | ?? | ?? | ?? | ~$1 | Borne native upper |
-| **B_dspy_in_milpo_free** | DSPy MIPROv2 (free) | MILPO | ?? | ?? | ?? | ~$2,7 | Upper bound apples-to-apples (DSPy peut réécrire les descriptions) |
-| **B_milpo** (Phase 3) | MILPO boucle ProTeGi (gradient + edit + paraphrase + Successive Rejects) | MILPO | ?? | ?? | ?? | ?? | Comparaison principale vs B_dspy_in_milpo_constrained — deux méthodes d'optimisation de prompts à infrastructure identique |
+### 5.3. TMST (Taux Marginal de Substitution Technique)
 
-#### Lectures attendues du tableau
+```
+TMST_A,M = Pm_A / Pm_M
+```
 
-1. **B_dspy_in_milpo_constrained vs B0** : mesure du gain (ou de la perte) de MIPROv2 par rapport aux instructions humaines, *à descriptions et runtime constants*. C'est la comparaison principale pour évaluer si MIPROv2 sait faire mieux qu'un humain expert sur ce problème.
+Hypothèse : TMST >> 1 — investir en architecture produit plus par dollar qu'investir en modèle.
 
-2. **B_dspy_in_milpo_free vs B_dspy_in_milpo_constrained** : mesure du **coût (ou bénéfice) de l'invariant humain**. Si la version free fait significativement mieux, c'est que les descriptions humaines limitent le système ; si c'est égal ou pire, les descriptions humaines sont au moins aussi bonnes que ce que MIPROv2 sait écrire.
+Donnée clé (à compléter) :
+- Pm_A = (Y_alma - Y_simple) / (Coût_alma - Coût_simple) = ?pp/$ → coût d'un point d'architecture
+- Pm_M = (Y_full-flash - Y_flash-lite) / (Coût_full-flash - Coût_flash-lite) = 2.9pp / $4.04 = 0.72 pp/$
 
-3. **B_dspy_native vs B_dspy_in_milpo (à mode constant)** : mesure de la **contribution empirique du runtime à la performance**. Si l'écart est faible, le runtime DSPy et le runtime MILPO produisent des résultats équivalents pour les mêmes instructions. Si l'écart est large, un des deux runtimes est mieux adapté aux particularités de Qwen 3.5 Flash via OpenRouter (potentiellement à cause du tool calling forcé vs parse texte).
+### 5.4. Rendements marginaux décroissants
 
-4. **B_milpo vs B_dspy_in_milpo_constrained** : la comparaison de fond du mémoire — deux méthodes d'optimisation de prompts (boucle ProTeGi à la Pryzant et al. vs Bayesian search MIPROv2) confrontées à infrastructure strictement identique sur le même cas industriel.
+| Investissement | Coût | VF | Coût marginal par pp |
+|----------------|------|-----|---------------------|
+| flash-lite | $3.68 | 83.8% | baseline |
+| flash (VF swap) | $4.62 | 83.6% | ∞ (négatif) |
+| full-flash | $7.72 | 86.7% | $1.39/pp |
 
-**Statut** : protocole et code en place. Runs en attente — l'extension du dev split annoté (actuellement 237 posts, idéalement 400-500+) conditionne la robustesse statistique des résultats DSPy.
+Le premier dollar (architecture) rapporte ~84pp. Le dernier (full-flash) rapporte ~0.7pp.
 
-### Comparaison empirique avec pipeline agentique A0 puis A1 bounded (agents/)
+### 5.5. ELECTRE III (analyse multicritère)
 
-**Pourquoi une approche agentique.** La pipeline classique (B0, MILPO, DSPy) est un pipeline fixe : descripteur → 3 classifieurs en parallèle, chaque étape avec un prompt hardcodé. L'approche agentique pose la question inverse : que se passe-t-il si un agent autonome construit son propre contexte via des tools de perception avant de classifier ? L'agent peut itérer (poser des questions ciblées au descripteur, récupérer des exemples annotés), adapter sa stratégie par post, et consulter un modèle plus intelligent (advisor) quand il hésite.
+6 critères non compensatoires :
 
-**Architecture A0.** Haiku 4.5 (executor) classifie séquentiellement category → visual_format → strategy dans une conversation multi-tours unique. L'advisor Opus 4.6 est disponible comme tool natif Anthropic (beta `advisor-tool-2026-03-01`). Haiku décide seul quand l'invoquer (hésitation entre 2+ labels proches).
+| Critère | Direction | Poids | Indiff (q) | Préf (p) | Veto (v) |
+|---------|-----------|-------|------------|----------|----------|
+| Accuracy VF | MAX | 0.35 | ±1.5pp | ±5pp | ±15pp |
+| Accuracy Cat | MAX | 0.15 | ±1pp | ±3pp | ±10pp |
+| Accuracy Strat | MAX | 0.10 | ±0.5pp | ±2pp | ±5pp |
+| Coût | MIN | 0.20 | ±$0.50 | ±$2 | ±$5 |
+| Latence | MIN | 0.10 | ±60s | ±300s | ±600s |
+| Fiabilité | MAX | 0.10 | ±0.5% | ±2% | ±5% |
 
-**Architecture A1 bounded.** L'architecture reste agentique, mais le runtime est borné pour le débit réel : 1 conversation par post, 1 soumission finale multi-axes, 2 tours executor maximum, advisor toujours disponible mais limité à 1 usage, tools client exécutés en parallèle, préfetch opportuniste du descripteur, et observabilité fine via `agent_traces` enrichi + `llm_request_events`. A0 reste disponible uniquement comme rollback temporaire (`--pipeline-mode legacy`), le mode par défaut devenant `--pipeline-mode bounded`.
+Output : graphe de surclassement + classement final des 6 configurations.
 
-4 tools de perception + 1 tool de sortie :
+### 5.6. Élasticité & model-agnosticism
 
-| Tool | Rôle | Backend |
-|---|---|---|
-| `describe_media` | Perception visuelle/audio du post. Mode structuré (JSON features, identique B0) ou mode focus (question libre au descripteur) | Gemini 3 Flash Preview via OpenRouter |
-| `get_taxonomy` | Descriptions taxonomiques par axe, filtrées par scope | BDD locale |
-| `get_examples` | Few-shot dynamique : exemples annotés du dev set, filtre année | BDD locale |
-| `advisor` | Guidance stratégique d'Opus quand Haiku hésite | Anthropic natif (server-side) |
-| `submit_classification` | Structured output : label (enum stricte par axe/scope) + confidence + reasoning | `strict: true`, garanti par Anthropic |
+- Élasticité accuracy/coût : ε = 0.03 (très inélastique pour full-flash vs flash-lite)
+- Model-agnosticism : Qwen ($0.065/M) donne -1.6pp vs Google flash-lite ($0.25/M) → le classifier est commoditisable
 
-**Routage déterministe.** Le scope FEED/REELS est déterminé par `media_product_type` côté code, pas par l'agent. Les taxonomies, exemples et labels enum sont filtrés par scope avant d'être présentés à l'agent.
+## 6. Findings principaux (provisoires, alpha uniquement)
 
-**Prompts versionnés.** 5 prompts en BDD (agent='agent_executor', migrations 012-013), optimisables avec la même infrastructure que les prompts classiques. Le descripteur structuré réutilise les prompts existants (descriptor/FEED id=7, descriptor/REELS id=8).
+1. **Architecture > modèle** : alma flash-lite (83.8%, $3.68) ≈ alma flash (83.6%, $4.62). Le swap VF seul ne rapporte rien.
+2. **Rendements décroissants** : full-flash (86.7%, $7.72) = +2.9pp pour +$4.04. Coût marginal $1.39/pp.
+3. **Model-agnosticism** : Qwen classifiers (82.2%, $2.34) ≈ Google classifiers (83.8%, $3.68). -1.6pp pour -36% de coût.
+4. **Classifier commoditisable** : le descripteur Alma concentre la valeur ($0.92 = 40% du coût qwen). Le classifier est interchangeable.
+5. **Fiabilité ≠ coût** : Qwen 96.7% couverture vs Google 100%. Tradeoff documenté.
 
-**Traces.** Table `agent_traces` (migration 011) : 1 row par post avec trace structurée JSONB (séquence tool_call / advisor_call / classification), métriques tokens par composant (executor, advisor, descriptor), classifications + confidence.
+## 7. Runs historiques (pré-ASSIST v5, référence)
 
-#### Tableau de comparaison A0 vs B0 (à compléter après le run)
+| Run | Architecture | Modèle | Harness | VF% | Coût | Notes |
+|-----|-------------|--------|---------|-----|------|-------|
+| 96 | E2E naïf | Flash Lite | aucun | 71.6% | $1.29 | Baseline naïf |
+| 93 | E2E naïf | Flash | aucun | 84.2% | $2.59 | |
+| 97 | E2E harness | Flash Lite | k=3 + oracle | 77.8% | ~$5 | |
+| 94 | E2E harness | Flash | k=3 + oracle | 85.4% | ~$9.40 | |
+| 95 | Pipeline v1 | Flash Lite | k=3 + oracle | 87.0% | $6.86 | Meilleur pipeline historique |
+| 90 | Pipeline v1 | Flash (VF) | k=3 + oracle | 87.6% | $9.21 | |
+| 100 | Pipeline DSPy | Flash Lite | k=3 + oracle | 85.4% | $6.30 | DSPy MIPROv2 |
+| 101 | Pipeline v1 | Flash (tout) | k=3 + oracle | 85.4% | $11.23 | Full Flash dominé |
 
-| Run | Architecture | Catégorie | Visual_format | Stratégie | Coût | Notes |
-|---|---|---|---|---|---|---|
-| **B0** (run id=23) | Pipeline fixe (Gemini + 3× Qwen) | **85,4%** | **73,9%** | **95,9%** | — | Référence |
-| **A0** | Agent Haiku + Opus advisor + tools | ?? | ?? | ?? | ~$15-35 | Approche agentique, few-shot dynamique, CoT explicite |
+**⚠️** : runs 90-101 utilisent l'ancienne clé API, l'ancienne architecture (pipeline v1 + harness k=3 + oracle Sonnet), et l'ancien test set (437 posts sans filtre doubtful). **Non directement comparables** aux runs 158+ mais utiles pour montrer la progression.
 
-#### Lectures attendues
+## 8. Données disponibles en BDD par run
 
-1. **A0 vs B0 accuracy** : l'approche agentique (CoT + few-shot dynamique + advisor) améliore-t-elle la classification par rapport à la pipeline fixe ? Cible : 90% overall.
-
-## Ablation factorielle : architecture × modèle × harness
-
-### Objectif
-
-Isoler l'effet de chaque composant sur la performance de classification. Trois facteurs croisés :
-
-1. **Architecture** : Pipeline multi-étapes (descripteur → classifieurs spécialisés) vs E2E (un seul appel multimodal images + caption → 3 axes)
-2. **Modèle** : Gemini 3.1 Flash Lite ($0.25/$1.50 par M tokens) vs Gemini 3 Flash Preview ($0.50/$3.00)
-3. **Harness** : Naïf (1 appel, T=0) vs Harness (self-consistency k=3 à T=0.3 + oracle cascade Sonnet 4.6 sur vf medium/low confidence)
-
-### Protocole
-
-Tous les runs utilisent :
-- Le même **test set** (437 posts annotés, split test)
-- La même **GT corrigée** (17 re-annotations data-centric post audit)
-- Les mêmes **prompts actifs** en BDD (visual_format FEED v1 avec VETO pour la pipeline, descriptions taxonomiques neutres pour le E2E)
-- Le même **routage FEED/REELS** déterministe
-
-La seule variable est le croisement architecture × modèle × harness.
-
-### Tableau d'ablation (visual_format accuracy — test set 437 posts, GT corrigée)
-
-| | E2E naïf | E2E harness (k=3 + oracle) | Pipeline (v1 VETO + k=3 + oracle) |
-|---|---|---|---|
-| **Flash Lite** ($0.25/$1.50) | **71.6%** (run 96, $1.29) | **77.8%** (run 97, ~$5) | **87.0%** (run 95, $6.86) |
-| **Flash** ($0.50/$3.00) | **84.2%** (run 93, $2.59) | **85.4%** (run 94, ~$9.40) | **87.6%** (run 90, $9.21) |
-
-#### Détail FEED / REELS
-
-| Run | Mode | Modèle | vf global | vf FEED (n=372) | vf REELS (n=65) | cat | strat |
-|---|---|---|---|---|---|---|---|
-| 90 | Pipeline (v1 VETO) | Flash (vf only) | 87.6% | 88.98% | 80.00% | 88.6% | 96.1% |
-| 93 | E2E naïf | Flash | 84.2% | 85.22% | 78.46% | 87.2% | 96.1% |
-| 94 | E2E harness | Flash | 85.4% | 86.29% | 80.00% | 87.0% | 95.7% |
-| 95 | Pipeline (v1 VETO) | Flash Lite | 87.0% | 88.44% | 78.46% | 88.6% | 94.3% |
-| 96 | E2E naïf | Flash Lite | 71.6% | 72.04% | 69.23% | 86.5% | 94.3% |
-| 97 | E2E harness | Flash Lite | 77.8% | 79.03% | 70.77% | 86.0% | 94.7% |
-
-#### Holdout dev prod (non-audité)
-
-| Run | Mode | Modèle | vf | cat | strat | n |
-|---|---|---|---|---|---|---|
-| 91 | Pipeline (v1 VETO) | Flash (vf) + Flash Lite | 83.2% | 87.7% | 99.5% | 381 |
-
-#### DSPy MIPROv2 (prompts optimisés automatiquement)
-
-| Run | Mode | Instructions vf | Modèle | vf | cat | strat |
-|---|---|---|---|---|---|---|
-| 95 | Pipeline | Manuelles (v1 VETO) | Flash Lite | 87.0% | 88.6% | 94.3% |
-| 98 | Pipeline | DSPy light (non seedé) | Flash Lite | à évaluer | | |
-| (en cours) | Pipeline | DSPy medium (seedé + 5 demos) | Flash Lite | **à évaluer** | | |
-
-### Runs associés — index complet
-
-| Run ID | Date | Mode | Modèle vf | Prompts | Split | Notes |
-|---|---|---|---|---|---|---|
-| 68 | 2026-04-11 | Pipeline (v0) | Flash Lite | v0 humain | test | Baseline zero-shot, 72.09% vf (recalculé vs GT corrigée) |
-| 89 | 2026-04-11 | Pipeline (critère unifié sans VETO) | Flash | active | test | 85.1% vf, première mesure critère unifié |
-| 90 | 2026-04-11 | Pipeline (v1 VETO) | Flash (vf) | active | test | 87.6% vf, meilleur pipeline Flash |
-| 91 | 2026-04-12 | Pipeline (v1 VETO) | Flash (vf) + FL | active | dev ≥2024 | 83.2% vf, holdout non-audité (381 posts) |
-| 93 | 2026-04-12 | E2E naïf | Flash | active | test | 84.2% vf, baseline E2E |
-| 94 | 2026-04-12 | E2E harness (k=3 + oracle) | Flash | active | test | 85.4% vf |
-| 95 | 2026-04-12 | Pipeline (v1 VETO) | Flash Lite | active | test | 87.0% vf, pipeline Flash Lite propre |
-| 96 | 2026-04-12 | E2E naïf | Flash Lite | active | test | 71.6% vf |
-| 97 | 2026-04-12 | E2E harness (k=3 + oracle) | Flash Lite | active | test | 77.8% vf |
-| 98 | 2026-04-12 | Pipeline | Flash Lite | dspy_constrained (light) | test | DSPy non seedé, à évaluer |
-| (en cours) | 2026-04-12 | Pipeline | Flash Lite | dspy_constrained (medium, seedé) | test | DSPy seedé + 5 demos |
-
-### Lectures attendues
-
-1. **Delta architecture (E2E harness vs Pipeline, même modèle, même harness)** : mesure la valeur ajoutée de la décomposition descripteur → classifieurs. Si le delta est faible (<2pp), l'architecture multi-étapes est une complexité non-justifiée — le modèle multimodal sait faire le même travail en un seul appel.
-
-2. **Delta harness (E2E naïf vs E2E harness, même modèle, même architecture)** : mesure la valeur ajoutée de la self-consistency + oracle cascade, isolée de tout effet architectural ou de prompt engineering. C'est le test de l'hypothèse "inference-time compute scaling".
-
-3. **Delta modèle (Flash Lite vs Flash, même architecture, même harness)** : mesure le gain d'un modèle plus capable, à architecture constante.
-
-4. **Interaction architecture × modèle** : si le delta architecture est fort sur Flash Lite mais faible sur Flash, l'architecture compense les faiblesses du petit modèle. La pipeline serait alors un "compensateur de capacité" — utile quand le modèle est faible, superflu quand il est capable.
-
-### Hypothèse centrale
-
-> L'architecture multi-étapes (pipeline) et le prompt engineering spécialisé (VETO, exemples, contre-exemples) sont des **compensateurs de faiblesse du modèle**. Plus le modèle est capable, moins ces composants ajoutent de valeur. Le seul levier **universel** (efficace quel que soit le modèle) est le **harness engineering** : self-consistency et oracle cascade.
-
-Cette hypothèse est testable via le tableau d'ablation. Si confirmée, la contribution du mémoire passe de "on a construit une pipeline complexe" à "on a identifié empiriquement quel composant apporte réellement de la valeur dans une pipeline de classification multimodale LLM".
-
-2. **A0 coût vs B0 coût** : le ratio qualité/coût est-il défendable ? B0 coûte — ; A0 devrait coûter 5-15× plus cher. Le surcoût est-il justifié par le gain de précision ?
-
-3. **Corrélation advisor ↔ difficulté** : sur quels posts Haiku appelle-t-il l'advisor ? Corrélation avec la confidence, les formats rares, les erreurs de B0 ?
-
-4. **Analyse qualitative du CoT** : le raisonnement de l'agent révèle-t-il des stratégies de classification différentes de la pipeline fixe ? L'agent identifie-t-il des ambiguïtés que les classifieurs ignorent ?
-
-**Statut** : code en place (`agents/`), run sur le test set en attente.
-
-### Contexte de la boucle ProTeGi — format des batches d'erreurs
-
-Quand la boucle ProTeGi se déclenche (30 erreurs accumulées sur la cible la plus erronée), trois LLMs distincts sont appelés en chaîne (`milpo/rewriter.py`).
-
-**1. LLM_∇ (critic) — diagnostic.** Reçoit les instructions $I_t$ et le batch d'erreurs filtrées pour la cible. Pour chaque erreur :
-
-- Le label **prédit** et le label **attendu** (annotation humaine)
-- Les **features JSON** extraites par le descripteur (texte_overlay, logos, mise_en_page, etc.)
-- Le **résumé visuel** du descripteur
-- La **caption** du post
-- La **description taxonomique** du label prédit ET du label attendu
-
-Le critic produit exactement $m$ critiques distinctes en langage naturel — le **« gradient textuel »** au sens de Pryzant et al. — sans jamais réécrire $I_t$. Le prompt système le contraint explicitement à ne pas suggérer d'édition. Le gradient est matérialisé en BDD (`rewrite_gradients`, migration 008) avec son texte intégral, le nombre de critiques, le modèle utilisé et les coûts.
-
-**2. LLM_δ (editor) — édition à partir du gradient.** Reçoit $I_t$, le gradient textuel, les erreurs et les descriptions taxonomiques (fixes). Produit $c$ candidats édités dans la direction sémantique opposée du gradient. Chaque candidat doit corriger au moins un défaut listé et être substantiellement différent des autres (vraie diversité, pas paraphrase). Température 0.7 pour favoriser cette diversité entre candidats.
-
-**3. LLM_mc (paraphraser) — diversification monte-carlo.** Skippé si $p = 1$ (défaut pragmatique). Sinon prend chaque candidat de l'editor et produit $p$ paraphrases sémantiquement équivalentes (synonymes, réorganisation syntaxique, sans ajouter ni retirer de règle). Total de candidats évalués : $c \cdot p$.
-
-**Évaluation et sélection.** Les $c$ (ou $c \cdot p$) candidats sont insérés en `prompt_versions` avec `status='draft'` et `parent_id` pointant vers l'incumbent (lineage), puis évalués en parallèle (un thread par bras) sur les 30 prochains posts dev avec leur ground truth. La fonction `multi_evaluate` gère le scope-mismatch (post FEED vs cible REELS) en propageant les matches incumbent à tous les bras concernés. Les accuracies par bras sont persistées dans `rewrite_beam_candidates.eval_accuracy`.
-
-**Best arm identification.** La sélection finale utilise **Successive Rejects** (Audibert & Bubeck 2010, COLT), un bandit *parameter-free* recommandé par ProTeGi pour la *best arm identification*. L'implémentation post-hoc (`milpo/bandits.py`) procède en $K - 1$ phases : à chaque phase elle élimine le bras de plus faible accuracy parmi ceux qui restent, et trace le numéro de phase d'élimination dans `rewrite_beam_candidates.sr_phase`. Le winner final a `is_winner=TRUE` et `sr_phase IS NULL`.
-
-**Promotion ou rollback.** Le winner Successive Rejects est promu si son accuracy dépasse l'incumbent de $\Delta \geq 2\%$, sinon rollback. Une row dans `rewrite_logs` est créée dans tous les cas avec `accepted = True/False` et la référence au gradient. La patience est de 3 rollbacks consécutifs avant arrêt des rewrites.
-
-Ce découpage en 3 LLMs distincts est la **différence centrale avec le rewriter unifié** d'une approche naïve : le gradient est matérialisé comme objet indépendant, citable et auditable, et la sélection des candidats utilise un bandit honnête plutôt qu'un argmax sur un seul candidat.
-
-## Tiers de priorité
-
-### Tier 1 — Indispensable
-
-| Action | Résultat attendu | Statut |
-|--------|------------------|--------|
-| Annoter split test (437 posts) | Ground truth test | ✅ fait |
-| B0 : zero-shot prompt v0 sur test | Accuracy baseline | ✅ fait — 85.4% / 73.9% / 95.9% (run id=23, 437/437, $2.68) |
-| Annoter split dev (1 563 posts) | Ground truth dev | ⬜ à faire (annotation aveugle, puis simulation prequential) |
-| Kappa intra-annotateur (re-swipe 50 posts) | Fiabilité ≥ 0.7 | ⬜ à faire |
-
-### Tier 2 — Nécessaire pour le claim
-
-| Action | Résultat attendu |
-|--------|------------------|
-| Phase 3 : rewriter batch=30 + rollback | Prompts v1, v2, ... vN générés |
-| Courbe accuracy vs annotations | **LA figure centrale du mémoire** |
-| BN : éval prompt vN vs v0 sur split test | **LE chiffre central du mémoire** |
-
-### Tier 3 — Renforce le claim
-
-| Action | Résultat attendu |
-|--------|------------------|
-| Ablations A1-A4 : batch size 1/10/30/50 | Sensibilité au batch size |
-| Baseline B4 : CLIP embeddings + LogReg | Comparaison supervisée |
-| Ablation A5 : sans rollback | Utilité du rollback |
-| Matrices de confusion par axe | Analyse qualitative des erreurs |
-
-### Tier 4 — Bonus
-
-| Action | Résultat attendu |
-|--------|------------------|
-| Kappa inter-annotateur | Validité de la taxonomie |
-| Ablation A6 : rewrite humain vs LLM | Qualité du rewriter |
-| Baseline B1 : zero-shot CLIP | Comparaison embedding-based |
-| Analyse qualitative de l'évolution du prompt | Insight interprétatif |
-
-## 4 figures indispensables
-
-1. **Courbe de convergence** : accuracy en Y, nombre d'annotations en X. Montrer dev (rolling window). Annoter les moments de rewrite (v0 → v1 → v2...).
-2. **Tableau de comparaison** : B0, B2, MILPO vN, avec accuracy + F1 macro, p-value McNemar.
-3. **Ablation batch size** : Barplot ou courbe montrant l'effet de B=1, 10, 30, 50 sur la performance finale.
-4. **Matrice de confusion** : Pour visual_format, avant (v0) vs après (vN).
-
-## Ablations
-
-| ID | Variante | Variable testée |
-|----|----------|-----------------|
-| A0 | Prompt v0 statique | Baseline sans optimisation |
-| A1 | MILPO batch=1 | Taille du batch |
-| A2 | MILPO batch=10 | Taille du batch |
-| A3 | MILPO batch=30 (défaut) | Configuration principale |
-| A4 | MILPO batch=50 | Taille du batch |
-| A5 | MILPO sans rollback | Effet du mécanisme de rollback |
-| A6 | MILPO rewrite humain | LLM rewriter vs humain expert |
-
-## Baselines
-
-| ID | Méthode | Type | Données nécessaires |
-|----|---------|------|---------------------|
-| B0 | Zero-shot + prompt v0 | Zero-shot | 0 |
-| B1 | Zero-shot CLIP | Zero-shot | 0 |
-| B2 | Few-shot 5 exemples/classe | Few-shot | ~150 |
-| B3 | Few-shot 10 exemples/classe | Few-shot | ~300 |
-| B4 | CLIP embeddings + Logistic Regression | Supervisé | 1563 |
-| B5 | CLIP embeddings + SVM | Supervisé | 1563 |
-| B6 | Fine-tuning LoRA (si faisable) | Supervisé | 1563 |
-
-## Checklist de recevabilité
-
-### Cadrage théorique
-- [x] Problématique = hypothèses falsifiables (H1, H2)
-- [ ] État de l'art ≥ 15 références (APE, DSPy, iPrOp, ProTeGi, PromptWizard)
-- [x] Positionnement explicite (4 axes)
-- [x] Formalisation mathématique de la boucle
-
-### Protocole
-- [ ] Ground truth ≥ 1563 dev + 437 test
-- [ ] Kappa intra-annotateur ≥ 0.7
-- [ ] 1 run principal + ablations batch size
-- [ ] McNemar sur B0 vs MILPO vN
-
-### Résultats
-- [x] B0 (zero-shot v0) — 85.4% / 73.9% / 95.9% (run id=23, 437/437 posts, $2.68, prompts v0 lockés via migration 006)
-- [ ] B2 (few-shot)
-- [ ] MILPO final (BN)
-- [ ] Courbe de convergence
-- [ ] ≥ 1 ablation (batch size ou rollback)
-- [ ] Matrice de confusion avant/après
-
-### Discussion
-- [ ] Classes qui bénéficient le plus
-- [ ] Évolution qualitative du prompt (v0 → vN)
-- [ ] Transfert zero-shot : accuracy formats vus vs jamais vus pendant l'optimisation
-- [ ] Longue traîne : amélioration indirecte des formats rares via resserrement des formats fréquents
-- [ ] Limites honnêtes
-- [ ] Coût comparé (annotations, appels API, $)
-
-### Forme
-- [ ] Abstract ≤ 250 mots avec claim + résultat clé
-- [ ] Bibliographie ≥ 15 références académiques
-- [ ] Code reproductible (repo public, seeds fixées)
-
-## Observations empiriques
-
-### 2026-04-11 — Biais de saillance textuelle dans les descriptions taxonomiques
-
-**Contexte.** Itérations sur les descriptions de `post_en_savoir_plus` / `post_en_savoir_plus_selection` pour corriger des annotations où le critère discriminant posé par l'annotateur (« présence d'une flèche d'incitation au swipe sur la slide 1 ») n'était pas respecté par le classifieur. Runs 66 → 67 sur split test (437 posts).
-
-**Observation.** Une description de classe qui combine un signal structurel obligatoire (« *la flèche est obligatoire* ») avec des signaux sémantiques descriptifs (« *approfondit un sujet par une lecture progressive*, contenu éditorial dense, reportage ») est mal appliquée par le classifieur : celui-ci match sur les signaux sémantiques, pas sur le signal structurel.
-
-**Preuve.** Audit des 4 faux positifs de `post_en_savoir_plus` au run 67 (3× `post_article`, 1× `post_news`) :
-
-| Post | Mention de « flèche » dans le descripteur | Termes matchés |
-|---|---|---|
-| Lena Situations / Balmain | aucune | « progression éditoriale : il commence par... puis plonge... » |
-| Segpa (film) | aucune | « structure éditoriale **approfondie** » |
-| Oscars 2024 sexisme | aucune | « structure éditoriale **approfondie** » |
-| Histoire terre battue | aucune | « progression éditoriale structurée » |
-
-Les 4 descripteurs ne mentionnent jamais de flèche. Le descripteur n'hallucine pas — il voit ce qui est là. Le classifieur extrait des mots-clés sémantiques (`approfondi`, `éditorial`, `progression`) qui apparaissent fréquemment dans les features descripteur de n'importe quel carousel éditorial long, alors que la flèche est un détail ponctuel noyé dans plusieurs paragraphes de texte.
-
-**Interprétation.** Quand une description de classe contient N signaux de nature différente (structurel + sémantique), le LLM classifieur utilise le signal qui apparaît le plus fréquemment dans son input, pas celui que l'annotateur considère comme le plus discriminant. Écrire « *signal X est obligatoire* » dans le prompt n'est pas suffisant : si la description énumère ensuite d'autres adjectifs sémantiques, ils deviennent des chemins alternatifs de matching.
-
-**Conséquence méthodologique.** Pour rendre un signal structurel *effectivement* discriminant, il faut retirer de la description tout autre signal sémantique qui pourrait servir de match alternatif — ne pas simplement dire « obligatoire ». La v3 des descriptions `post_en_savoir_plus` / `post_en_savoir_plus_selection` (fix post-run 67) adopte ce principe : seule la flèche est mentionnée comme signal, avec une clause négative explicite (« sans cette mention, il ne s'agit jamais de cette classe, indépendamment du contenu »).
-
-**À suivre.** Ce pattern n'est probablement pas spécifique à `post_en_savoir_plus` — il est à rechercher sur toutes les classes dont la description mélange un signal obligatoire et des signaux sémantiques décoratifs.
-
-**Second cas observé (run 68 → run 69) : `post_serie_mood_texte`.** Même pattern mais d'origine différente : la description en BDD disait *« carousel de plusieurs slides avec le **même template** »*, alors que la réalité annotée est un format **asymétrique** (slide 1 avec titre overlay, slides 2+ sans texte). Conséquence : au run 68, cette classe absorbait 8 `post_selection` + 2 `post_article` en faux positifs parce que le mot « même template » matchait exactement ce qui définit `post_selection` (template Views uniforme sur chaque slide). Fix : réécriture avec discriminant structurel explicite (asymétrie slide 1 vs slides 2+), clause négative sur le vocabulaire parasite (« gabarit », « template », « mood »), et trois règles de désambiguation explicites (vs `post_selection`, `post_mood`, `post_article`). Ce second cas confirme que le biais de saillance textuelle est un phénomène **reproductible** à traquer sur toutes les classes dont la description a été écrite sans audit empirique.
-
-### 2026-04-11 — Variance inter-run du même ordre que les gains ciblés
-
-**Contexte.** Trois runs consécutifs sur le split test (63 → 66 → 67), chacun séparé par une édition taxonomique ciblée sur 1 à 4 classes. Pipeline identique, temperature=0, modèle inchangé.
-
-**Observation.** Des classes **non touchées** par les édits bougent de ±3 à ±10 points de recall entre deux runs. Exemples au run 67 par rapport au run 66, alors qu'aucune édition ne les concernait :
-- `post_mood` : 92.0% → 85.0% (-7pp, 8 posts perdus vers wrap_up / shooting / coulisses / retour_en_images)
-- `post_serie_mood_texte` : 33% → 67% → 67% sur petit n=6
-
-**Interprétation.** À n=432 avec un signal concentré sur 4-10 classes par édition, le gain ciblé d'une intervention (+3 à +5 points sur une classe, soit ~+0.5 à +1 point global) est du même ordre que la variance inter-run de la pipeline. Cette variance résiduelle vient du LLM classifieur (non parfaitement déterministe malgré temperature=0) et du fait qu'une édition taxonomique change le contexte global vu par toutes les classes, pas seulement celle éditée.
-
-**Conséquence méthodologique.** Mesurer l'effet d'une édition isolée sur l'accuracy globale n'est pas fiable à n=432. Trois stratégies possibles :
-1. Agréger 3-5 édits taxo avant de relancer un run, pour que le gain cumulé dépasse la variance
-2. Faire k runs par configuration et moyenner (multiplie le coût par k)
-3. Mesurer l'effet localement sur la classe ciblée (où le gain attendu est typiquement +20 à +80 points) plutôt que sur l'accuracy globale
-
-La méthode (1) est la plus pragmatique compte tenu du budget. La méthode (3) est complémentaire : même si l'accuracy globale bouge dans le bruit, la matrice de confusion par classe reste interprétable.
-
-### 2026-04-11 — Limite fondamentale de la cascade oracle textuelle
-
-**Contexte.** Après un premier appel oracle (Claude Sonnet 4.6 sur les 138 erreurs du run 70), on a envisagé un déploiement en production sous forme de cascade confidence-aware : les prédictions low-confidence du classifieur primaire (Gemini 3.1 Flash Lite) seraient escaladées vers Sonnet 4.6 pour une seconde classification. Le raisonnement initial : les 55% `agrees_truth` de l'oracle suggéraient un plafond théorique de ~+15pp d'accuracy avec cascade parfaite.
-
-**Observation.** La cascade oracle textuelle est **fondamentalement bornée par la qualité du descripteur en amont**. Les deux modèles (Flash Lite et Sonnet 4.6) opèrent sur les **mêmes features texte** produites par le descripteur multimodal — ni l'un ni l'autre n'accède directement aux pixels. Un signal visuel manqué par le descripteur est définitivement perdu pour tout classifieur aval.
-
-**Preuve empirique.** Sur le cas `DS45cX6DJ9I` (Nabana no Sato festival des lumières), le descripteur a **correctement capturé** le texte overlay slide 1 *« L'installation lumineuse du mont Fuji lors du festival de Nabana no Sato »* + logo Views. Sonnet 4.6 (confidence=high) a néanmoins classifié en `reel_mood` en écrivant *« sans structure d'actualité textuelle dominante »* — une erreur d'**interprétation** des features descripteur, pas de perception. Le texte overlay était lisible dans les features mais Sonnet l'a sous-pondéré en faveur du ton contemplatif.
-
-**Second effet observé.** Sur 13 cas Sonnet high-confidence `agrees_prediction` présentés à l'humain pour validation rapide (auto-commit), seulement **2/13 (15%)** ont été validés. Les 11 autres étaient des sur-interprétations où Sonnet matchait sur des patterns génériques (« plusieurs items distincts = post_selection ») en manquant des gabarits visuels spécifiques à Views (`post_frise`, `post_chiffre`). Le ratio noise/signal sur les hauts niveaux de confidence oracle est beaucoup plus élevé qu'on ne l'aurait anticipé.
-
-**Recalibration du plafond d'accuracy.**
-- Estimation initiale (naïve) : 55% × 138 erreurs ≈ +15pp si cascade parfaite.
-- Estimation réaliste après audit humain des verdicts : ~30-40% de signal utile net, soit **+3 à +7pp** d'accuracy en pratique.
-- Significatif mais pas transformateur. Ne permet pas d'atteindre les 90% visés.
-
-**Vraie valeur de l'oracle identifiée.** L'oracle Sonnet 4.6 s'est révélé **plus utile comme auditeur d'annotations que comme classifieur de secours**. Il a permis d'identifier avec confiance humaine-validée 10 incohérences d'annotation (6 `reel_news`→`reel_mood`, 4 `post_mood`→`post_anniversaire`) qui n'auraient pas été trouvées par inspection manuelle exhaustive. Ces re-annotations ont amélioré le score vf de +5.7pp sur le périmètre production ≥2024 (run 71 72.6% → run 72 78.3%) — sans toucher au classifieur, uniquement via l'audit ground-truth guidé par oracle.
-
-**Conséquence architecturale pour les travaux futurs.** Une cascade textuelle Flash Lite → Sonnet 4.6 sur le même descripteur n'est pas la bonne abstraction — elle hérite d'un goulot partagé. Deux alternatives mériteraient d'être explorées :
-
-1. **Cascade multimodale** : escalader les cas low-confidence vers un modèle qui accède directement aux pixels (Gemini 3 Pro, Sonnet 4.6 vision, GPT-5 vision). Bypass complet du descripteur pour les cas difficiles. Ce n'est plus un « oracle texte », c'est un « re-perception multimodale ».
-
-2. **Amélioration du descripteur** : swap du descripteur Gemini 3.1 Flash Lite vers Gemini 3 Pro multimodal améliore les features pour **tous** les posts, pas seulement les cas low-confidence. Gain distribué mais sans logique de routing.
-
-L'oracle textuel garde sa valeur comme **outil offline d'audit d'annotations** (cf. workflow data-centric de cette journée), mais son déploiement comme classifieur cascade en production nécessite une reformulation architecturale.
+Chaque run stocke dans `simulation_runs` + `predictions` + `api_calls` :
+- Accuracy par axe (VF, cat, strat)
+- Coût total ($ avec reasoning tokens inclus, fix v5.3)
+- Tokens par appel (input, output, reasoning séparé — migration 017)
+- Latence par appel (ms)
+- Reasoning CoT du classifier (predictions.raw_response.reasoning)
+- Description Alma complète (predictions.raw_response.text pour agent='descriptor')
+- Configuration (modèles, tier, dataset, pipeline_mode)
