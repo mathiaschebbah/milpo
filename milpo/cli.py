@@ -67,7 +67,7 @@ _FLASH = "gemini-3-flash-preview"
 #                 multimodal images+audio, tool calling natif). Coût $0.
 _QWEN = "qwen/qwen3.5-flash-02-23"
 _GEMMA4 = "gemma4:e4b"
-MODEL_TIERS: tuple[str, ...] = ("flash-lite", "flash", "full-flash", "qwen", "gemma4")
+MODEL_TIERS: tuple[str, ...] = ("flash-lite", "flash", "full-flash", "qwen", "gemma4", "no-assist")
 
 
 def _resolve_tier(mode: str, tier: str) -> dict[str, str]:
@@ -99,6 +99,13 @@ def _resolve_tier(mode: str, tier: str) -> dict[str, str]:
             "classifier": _QWEN,         # text-only → OpenRouter Qwen
             "classifier_vf": _QWEN,
             "simple": _FLASH_LITE,       # fallback flash-lite (simple = multimodal)
+        }
+    if tier == "no-assist":
+        return {
+            "descriptor": _FLASH_LITE,
+            "classifier": _FLASH_LITE,
+            "classifier_vf": _FLASH_LITE,
+            "simple": _FLASH_LITE,
         }
     if tier == "gemma4":
         return {
@@ -476,6 +483,7 @@ async def run_classification(args) -> int:
             model=resolved_models["simple"] or MODEL_SIMPLE,
             max_concurrent=10,
             on_progress=on_progress,
+            no_assist=(model_tier == "no-assist"),
         )
 
     errors = len(post_inputs) - len(results)

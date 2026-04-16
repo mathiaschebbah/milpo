@@ -511,9 +511,11 @@ async def async_call_simple(
     semaphore: asyncio.Semaphore,
     temperature: float = 0.0,
     reasoning_effort: str = "low",
+    no_assist: bool = False,
 ) -> tuple[dict[str, str], str, str, ApiCallLog]:
     """Appelle le classifieur simple multimodal (1 appel → 3 labels).
 
+    Si no_assist=True : taxonomies seules, sans questions ASSIST ni procédures.
     Retourne ({visual_format, category, strategy}, confidence, reasoning, log).
     """
     post_scope = post.media_product_type.upper()
@@ -523,6 +525,7 @@ async def async_call_simple(
         caption=post.caption,
         post_scope=post_scope,
         posted_at=post.posted_at,
+        no_assist=no_assist,
     )
     tool = build_simple_tool(vf_labels, cat_labels, strat_labels)
     tool_name = tool["function"]["name"]
@@ -636,8 +639,9 @@ async def async_classify_post_simple(
     client: AsyncOpenAI,
     semaphore: asyncio.Semaphore,
     model: str = MODEL_SIMPLE,
+    no_assist: bool = False,
 ) -> PipelineResult:
-    """Pipeline --simple : 1 appel multimodal ASSIST pour un post."""
+    """Pipeline --simple : 1 appel multimodal pour un post."""
     labels_by_axis, confidence, reasoning, clf_log = await async_call_simple(
         client=client,
         model=model,
@@ -646,6 +650,7 @@ async def async_classify_post_simple(
         cat_labels=category_labels,
         strat_labels=strategy_labels,
         semaphore=semaphore,
+        no_assist=no_assist,
     )
     prediction = _build_post_prediction(
         ig_media_id=post.ig_media_id,
@@ -758,11 +763,12 @@ async def async_classify_simple_batch(
     max_concurrent: int = 5,
     on_progress: Any = None,
     per_post_timeout: float = 900.0,
+    no_assist: bool = False,
 ) -> list[PipelineResult]:
-    """Batch --simple : 1 appel multimodal ASSIST par post (3 labels en une fois).
+    """Batch --simple : 1 appel multimodal par post (3 labels en une fois).
 
-    Timeout 900s (vs 480s pour alma) : simple envoie tout en 1 appel
-    (images + 3 taxonomies + questions ASSIST = ~50k tokens) → plus lent.
+    Timeout 900s (vs 480s pour alma) : simple envoie tout en 1 appel.
+    Si no_assist=True : taxonomies seules, sans questions ASSIST ni procédures.
     """
     client = get_async_client()
     semaphore = asyncio.Semaphore(max_concurrent)
@@ -788,6 +794,7 @@ async def async_classify_simple_batch(
                     client=client,
                     semaphore=semaphore,
                     model=model,
+                    no_assist=no_assist,
                 ),
                 timeout=per_post_timeout,
             )

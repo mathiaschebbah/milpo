@@ -69,9 +69,14 @@ def build_simple_messages(
     caption: str | None,
     post_scope: str,
     posted_at: datetime | None = None,
+    *,
+    no_assist: bool = False,
 ) -> list[dict]:
-    """Construit les messages ASSIST pour le classifieur simple (1 appel multimodal)."""
-    del media_types  # Gemini accepte les vidéos comme image_url aussi.
+    """Construit les messages pour le classifieur simple (1 appel multimodal).
+
+    Si no_assist=True : taxonomies seules, sans questions ASSIST ni procédures.
+    """
+    del media_types
 
     scope = post_scope.upper()
     rendered_questions = render_questions_for_scope(scope)
@@ -84,6 +89,7 @@ def build_simple_messages(
         vf_taxonomy=vf_taxonomy,
         cat_taxonomy=cat_taxonomy,
         strat_taxonomy=strat_taxonomy,
+        no_assist=no_assist,
     )
     content: list[dict] = [{"type": "text", "text": intro}]
     for url in media_urls:

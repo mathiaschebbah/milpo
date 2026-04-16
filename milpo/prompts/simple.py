@@ -69,8 +69,24 @@ def build_user_intro(
     vf_taxonomy: str,
     cat_taxonomy: str,
     strat_taxonomy: str,
+    *,
+    no_assist: bool = False,
 ) -> str:
-    """Texte qui ouvre le user message, juste avant les images."""
+    """Texte qui ouvre le user message, juste avant les images.
+
+    Si no_assist=True : envoie seulement les taxonomies, sans questions
+    ASSIST ni procédures par axe. Point de référence naïf pour l'ablation.
+    """
+    if no_assist:
+        return (
+            f"{USER_VF_HEADER}\n\n"
+            f"{vf_taxonomy}\n\n"
+            f"{USER_CAT_HEADER}\n\n"
+            f"{cat_taxonomy}\n\n"
+            f"{USER_STRAT_HEADER}\n\n"
+            f"{strat_taxonomy}\n\n"
+            f"{USER_MEDIA_LABEL}"
+        )
     procedure_lines = "\n".join(
         f"{axis} : {PROCEDURE_BY_AXIS[axis]}"
         for axis in ("visual_format", "category", "strategy")
