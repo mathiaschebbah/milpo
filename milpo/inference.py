@@ -152,6 +152,24 @@ def get_async_client() -> AsyncOpenAI:
 # ─── Helpers partagés ───────────────────────────────────────────────────────
 
 
+def _is_rate_limit_error(exc: Exception) -> bool:
+    """Détecte une erreur 429 / RESOURCE_EXHAUSTED."""
+    msg = str(exc)
+    return "429" in msg or "RESOURCE_EXHAUSTED" in msg
+
+
+def _parse_retry_delay(exc: Exception) -> float:
+    """Extrait le retryDelay recommandé par Google AI depuis l'erreur 429.
+
+    Retourne le délai en secondes, ou 20s par défaut si non parseable.
+    """
+    msg = str(exc)
+    match = re.search(r"retryDelay.*?(\d+(?:\.\d+)?)s", msg)
+    if match:
+        return min(float(match.group(1)) + 2.0, 60.0)
+    return 20.0
+
+
 def _extract_json_from_text(text: str) -> str | None:
     """Extrait un JSON brut d'un texte (fallback quand pas de tool_call).
 
@@ -214,7 +232,8 @@ async def async_call_descriptor(
             except Exception as exc:
                 log.warning("Descriptor appel échoué (attempt %d): %s", attempt + 1, exc)
                 if attempt < max_retries - 1:
-                    await asyncio.sleep(2 ** attempt)
+                    delay = _parse_retry_delay(exc) if _is_rate_limit_error(exc) else 2 ** attempt
+                    await asyncio.sleep(delay)
                     continue
                 raise
             latency_ms = int((time.monotonic() - start) * 1000)
@@ -286,7 +305,7 @@ async def async_call_classifier(
     tool = build_classifier_tool(axis, labels)
     tool_name = tool["function"]["name"]
 
-    max_retries = 3
+    max_retries = 5
     for attempt in range(max_retries):
         async with semaphore:
             start = time.monotonic()
@@ -303,7 +322,8 @@ async def async_call_classifier(
             except Exception as exc:
                 log.warning("Classifier %s échoué (attempt %d): %s", axis, attempt + 1, exc)
                 if attempt < max_retries - 1:
-                    await asyncio.sleep(2 ** attempt)
+                    delay = _parse_retry_delay(exc) if _is_rate_limit_error(exc) else 2 ** attempt
+                    await asyncio.sleep(delay)
                     continue
                 raise
             latency_ms = int((time.monotonic() - start) * 1000)
@@ -530,7 +550,7 @@ async def async_call_simple(
     tool = build_simple_tool(vf_labels, cat_labels, strat_labels)
     tool_name = tool["function"]["name"]
 
-    max_retries = 3
+    max_retries = 5
     for attempt in range(max_retries):
         async with semaphore:
             start = time.monotonic()
@@ -547,7 +567,8 @@ async def async_call_simple(
             except Exception as exc:
                 log.warning("Simple appel échoué (attempt %d): %s", attempt + 1, exc)
                 if attempt < max_retries - 1:
-                    await asyncio.sleep(2 ** attempt)
+                    delay = _parse_retry_delay(exc) if _is_rate_limit_error(exc) else 2 ** attempt
+                    await asyncio.sleep(delay)
                     continue
                 raise
             latency_ms = int((time.monotonic() - start) * 1000)

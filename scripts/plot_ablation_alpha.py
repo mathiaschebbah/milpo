@@ -9,130 +9,281 @@ Produit 4 figures dans docs/ :
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+import os
+from pathlib import Path
+import textwrap
+
 import matplotlib.pyplot as plt
+import matplotlib.patheffects as pe
 import matplotlib.ticker as mticker
 import numpy as np
+import psycopg
+from dotenv import load_dotenv
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+load_dotenv(PROJECT_ROOT / ".env")
+DATABASE_DSN = os.environ.get("HILPO_DATABASE_DSN", "postgresql://hilpo:hilpo@localhost:5433/hilpo")
+OUTPUT_DIR = PROJECT_ROOT / "docs"
 
 plt.rcParams.update({
-    "font.family": "sans-serif",
-    "font.size": 11,
+    "font.family": "DejaVu Sans",
+    "font.size": 10,
     "axes.spines.top": False,
     "axes.spines.right": False,
     "figure.facecolor": "white",
+    "savefig.dpi": 300,
 })
 
-# ── Données alpha (extraites de la BDD) ─────────────────────────────────────
+# ── Données alpha (labels + résumé numérique) ───────────────────────────────
+
+
+@dataclass(frozen=True)
+class RunSpec:
+    run_id: int
+    mode_label: str
+    tier_label: str
+    assist_label: str
+    vf_pct: float
+    cat_pct: float
+    strat_pct: float
+    cost_usd: float
+    cpp_cents: float
+    n_posts: int
+    errors: int
+
+    @property
+    def accuracy_pct(self) -> float:
+        return self.vf_pct
+
 
 RUNS = [
     # (run_id, mode, tier, assist, vf%, cat%, strat%, cost_usd, cpp_cents, n_posts, errors)
-    (158, "alma",   "flash-lite",  "ASSIST",    83.8, 92.8, 96.9, 3.67, 0.94, 390, 0),
-    (159, "alma",   "flash",       "ASSIST",    83.6, 92.8, 96.9, 4.62, 1.18, 390, 0),
-    (160, "alma",   "full-flash",  "ASSIST",    86.7, 93.3, 96.7, 7.72, 1.98, 390, 0),
-    (161, "alma",   "qwen",        "ASSIST",    82.2, 93.4, 95.8, 2.33, 0.62, 377, 13),
-    (164, "simple", "flash-lite",  "ASSIST",    84.9, 89.5, 97.4, 3.25, 0.83, 390, 0),
-    (165, "simple", "flash-lite",  "no-assist", 85.4, 91.8, 97.4, 3.05, 0.78, 390, 0),
-    (167, "simple", "flash",       "no-assist", 85.3, 90.5, 98.2, 4.92, 1.27, 389, 1),
-    (171, "simple", "flash",       "ASSIST",    87.8, 89.6, 98.4, 5.18, 1.34, 386, 4),
+    (158, "Alma",   "Flash-Lite",  "ASSIST",    83.8, 92.8, 96.9, 3.67, 0.94, 390, 0),
+    (159, "Alma",   "Flash",       "ASSIST",    83.6, 92.8, 96.9, 4.62, 1.18, 390, 0),
+    (160, "Alma",   "Full-Flash",  "ASSIST",    86.7, 93.3, 96.7, 7.72, 1.98, 390, 0),
+    (161, "Alma",   "Qwen",        "ASSIST",    82.2, 93.4, 95.8, 2.33, 0.62, 377, 13),
+    (164, "Simple", "Flash-Lite",  "ASSIST",    84.9, 89.5, 97.4, 3.25, 0.83, 390, 0),
+    (165, "Simple", "Flash-Lite",  "no-assist", 85.4, 91.8, 97.4, 3.05, 0.78, 390, 0),
+    (167, "Simple", "Flash",       "no-assist", 85.3, 90.5, 98.2, 4.92, 1.27, 389, 1),
+    (171, "Simple", "Flash",       "ASSIST",    87.8, 89.6, 98.4, 5.18, 1.34, 386, 4),
 ]
 
-COLORS = {
-    ("alma", "ASSIST"):       "#2563eb",
-    ("simple", "ASSIST"):     "#16a34a",
-    ("simple", "no-assist"):  "#f59e0b",
+RUN_SPECS = [RunSpec(*run) for run in RUNS]
+RUN_SPECS_BY_ID = {run.run_id: run for run in RUN_SPECS}
+ALPHA_RUN_IDS = tuple(run.run_id for run in RUN_SPECS)
+
+PARETO_LABEL_POSITIONS = {
+    158: {"offset": (10, 2), "ha": "left", "va": "bottom"},
+    159: {"offset": (10, -2), "ha": "left", "va": "top"},
+    160: {"offset": (8, 4), "ha": "left", "va": "bottom"},
+    161: {"offset": (10, -6), "ha": "left", "va": "top"},
+    164: {"offset": (-10, -2), "ha": "right", "va": "top"},
+    165: {"offset": (10, 14), "ha": "left", "va": "bottom"},
+    167: {"offset": (12, 0), "ha": "left", "va": "center"},
+    171: {"offset": (10, 10), "ha": "left", "va": "bottom"},
 }
 
-MARKERS = {
-    "flash-lite": "o",
-    "flash": "s",
-    "full-flash": "D",
-    "qwen": "^",
-}
 
-OUT = "/Users/mathias/Desktop/mémoire-v2/docs"
+@dataclass(frozen=True)
+class ParetoPoint:
+    run_id: int
+    cost_usd: float
+    n_predictions: int
+    n_correct: int
+
+    @property
+    def accuracy_pct(self) -> float:
+        return 100.0 * self.n_correct / self.n_predictions
 
 
-def _label(r):
-    mode, tier, assist = r[1], r[2], r[3]
-    s = f"{mode} {tier}"
-    if assist == "no-assist":
-        s += " (no-assist)"
-    return s
+def _assist_label_text(label: str) -> str:
+    return "Sans ASSIST" if label == "no-assist" else label
+
+
+def _display_name(run: RunSpec, *, include_assist: bool = True, width: int | None = None) -> str:
+    parts = [run.mode_label, run.tier_label]
+    if include_assist and run.assist_label != "ASSIST":
+        parts.append(_assist_label_text(run.assist_label))
+
+    text = " ".join(parts)
+    if width is None:
+        return text
+    return textwrap.fill(text, width=width, break_long_words=False, break_on_hyphens=False)
+
+
+def _load_pareto_points() -> list[ParetoPoint]:
+    query = """
+        SELECT
+            r.id,
+            r.total_cost_usd,
+            (
+                SELECT count(*)
+                FROM predictions p
+                WHERE p.simulation_run_id = r.id
+                  AND p.agent = 'visual_format'
+            ) AS n_predictions,
+            (
+                SELECT count(*)
+                FROM predictions p
+                WHERE p.simulation_run_id = r.id
+                  AND p.agent = 'visual_format'
+                  AND p.match
+            ) AS n_correct
+        FROM simulation_runs r
+        WHERE r.id = ANY(%s)
+        ORDER BY r.total_cost_usd
+    """
+
+    with psycopg.connect(DATABASE_DSN) as conn:
+        with conn.cursor() as cur:
+            cur.execute(query, (list(ALPHA_RUN_IDS),))
+            rows = cur.fetchall()
+
+    points = [
+        ParetoPoint(
+            run_id=run_id,
+            cost_usd=float(cost_usd),
+            n_predictions=int(n_predictions),
+            n_correct=int(n_correct),
+        )
+        for run_id, cost_usd, n_predictions, n_correct in rows
+    ]
+
+    if len(points) != len(ALPHA_RUN_IDS):
+        raise RuntimeError(
+            f"Pareto alpha incomplet: {len(points)} runs charges, {len(ALPHA_RUN_IDS)} attendus."
+        )
+
+    return points
+
+
+def _compute_pareto_frontier(runs) -> list:
+    frontier = []
+
+    for candidate in runs:
+        dominated = False
+        for other in runs:
+            if other.run_id == candidate.run_id:
+                continue
+
+            same_or_lower_cost = other.cost_usd <= candidate.cost_usd
+            same_or_higher_acc = other.accuracy_pct >= candidate.accuracy_pct
+            strictly_better = (
+                other.cost_usd < candidate.cost_usd
+                or other.accuracy_pct > candidate.accuracy_pct
+            )
+            if same_or_lower_cost and same_or_higher_acc and strictly_better:
+                dominated = True
+                break
+
+        if not dominated:
+            frontier.append(candidate)
+
+    return sorted(frontier, key=lambda run: run.cost_usd)
+
+
+def _pareto_label(run_id: int) -> str:
+    display_name = _display_name(RUN_SPECS_BY_ID[run_id], width=18)
+    return f"{display_name}\n(run {run_id})"
 
 
 # ── Figure 1 : Frontière de Pareto ──────────────────────────────────────────
 
 def plot_pareto():
-    fig, ax = plt.subplots(figsize=(10, 7))
+    points = _load_pareto_points()
+    pareto_points = _compute_pareto_frontier(points)
+    pareto_ids = {point.run_id for point in pareto_points}
 
-    pareto_ids = {161, 165, 171}
-    pareto_points = [(r[7], r[4]) for r in RUNS if r[0] in pareto_ids]
-    pareto_points.sort()
+    fig, ax = plt.subplots(figsize=(7.8, 4.8))
+    ax.set_axisbelow(True)
+    ax.grid(axis="y", color="#E5E7EB", linewidth=0.75)
 
-    for r in RUNS:
-        rid = r[0]
-        is_pareto = rid in pareto_ids
-        x_val, y_val = r[8], r[4]
-
-        x_val = r[7]  # cost total ($)
+    for point in points:
+        is_pareto = point.run_id in pareto_ids
+        x_val = point.cost_usd
+        y_val = point.accuracy_pct
 
         if is_pareto:
-            ax.scatter(x_val, y_val, c="#2563eb", marker="o", s=180, zorder=5,
-                       edgecolors="#2563eb", linewidths=1.5)
+            ax.scatter(
+                x_val,
+                y_val,
+                s=150,
+                marker="o",
+                facecolor="#2563EB",
+                edgecolor="#1E3A8A",
+                linewidth=1.0,
+                zorder=3,
+            )
         else:
-            ax.scatter(x_val, y_val, c="#aaa", marker="x", s=120, zorder=5,
-                       linewidths=2)
+            ax.scatter(
+                x_val,
+                y_val,
+                s=120,
+                marker="x",
+                color="#9CA3AF",
+                linewidths=2.0,
+                zorder=3,
+            )
 
-        label = f"{_label(r)}\n(run {rid})"
-        offset_x, offset_y = 0.04, 0.0
-        ha = "left"
-        if rid == 165:
-            offset_y = -0.5
-        elif rid == 164:
-            offset_y = 0.4
-        elif rid == 167:
-            offset_y = -0.5
-        elif rid == 160:
-            offset_x = -0.04
-            ha = "right"
-        elif rid == 161:
-            offset_y = -0.5
-        elif rid == 171:
-            offset_y = 0.4
+        label_style = PARETO_LABEL_POSITIONS[point.run_id]
+        label_color = "#2563EB" if is_pareto else "#6B7280"
+        annotation = ax.annotate(
+            _pareto_label(point.run_id),
+            xy=(x_val, y_val),
+            xytext=label_style["offset"],
+            textcoords="offset points",
+            ha=label_style["ha"],
+            va=label_style["va"],
+            fontsize=8.0,
+            color=label_color,
+            fontweight="bold" if is_pareto else "normal",
+            zorder=4,
+        )
+        annotation.set_path_effects([pe.withStroke(linewidth=3.5, foreground="white")])
 
-        color = "#2563eb" if is_pareto else "#888"
-        ax.annotate(label, (x_val, y_val),
-                    xytext=(x_val + offset_x, y_val + offset_y),
-                    fontsize=8, color=color,
-                    fontweight="bold" if is_pareto else "normal")
+    ax.plot(
+        [point.cost_usd for point in pareto_points],
+        [point.accuracy_pct for point in pareto_points],
+        color="#DC2626",
+        linestyle=(0, (4, 2)),
+        linewidth=2.0,
+        zorder=2,
+    )
 
-    px, py = zip(*pareto_points)
-    ax.plot(px, py, color="#e74c3c", linestyle="--", linewidth=2,
-            alpha=0.7, zorder=2)
-
-    ax.set_xlabel("Coût par run ($)", fontsize=13)
-    ax.set_ylabel("Visual Format Accuracy (%)", fontsize=13)
-    ax.set_title("Frontière coût-performance", fontsize=15, fontweight="bold")
+    ax.set_xlabel("Coût total du run (USD)", fontsize=11)
+    ax.set_ylabel("Accuracy VF (%)", fontsize=11)
+    ax.set_title("Frontière de Pareto coût-performance (alpha, n = 390)", fontsize=12, fontweight="bold")
 
     from matplotlib.lines import Line2D
     legend_elements = [
-        Line2D([0], [0], marker="o", color="w", markerfacecolor="#2563eb",
-               markeredgecolor="#2563eb", markersize=11, label="Pareto-optimal"),
-        Line2D([0], [0], marker="x", color="#aaa", markersize=10,
-               linewidth=0, markeredgewidth=2, label="Dominé"),
-        Line2D([0], [0], linestyle="--", color="#e74c3c", linewidth=2,
-               alpha=0.7, label="Frontière efficiente"),
+        Line2D([0], [0], marker="o", linestyle="", color="#2563EB",
+               markerfacecolor="#2563EB", markeredgecolor="#1E3A8A",
+               markersize=8.5, label="Pareto-optimal"),
+        Line2D([0], [0], marker="x", linestyle="", color="#9CA3AF",
+               markersize=8.5, markeredgewidth=2, label="Dominé"),
+        Line2D([0], [0], linestyle=(0, (4, 2)), color="#DC2626", linewidth=2,
+               label="Frontière de Pareto"),
     ]
-    ax.legend(handles=legend_elements, loc="lower right", fontsize=10,
-              framealpha=0.9, edgecolor="#ddd")
+    ax.legend(
+        handles=legend_elements,
+        loc="lower right",
+        fontsize=9,
+        frameon=True,
+        framealpha=0.95,
+        edgecolor="#D1D5DB",
+        facecolor="white",
+    )
 
-    ax.set_ylim(80, 90)
-    ax.set_xlim(0, 9)
-    ax.yaxis.set_major_formatter(mticker.FormatStrFormatter("%.1f"))
-    ax.grid(True, alpha=0.2)
+    ax.set_xlim(2.0, 8.35)
+    ax.set_ylim(81.4, 88.8)
+    ax.xaxis.set_major_locator(mticker.MultipleLocator(1.0))
+    ax.yaxis.set_major_locator(mticker.MultipleLocator(1.0))
+    ax.yaxis.set_major_formatter(mticker.FormatStrFormatter("%.0f"))
 
     fig.tight_layout()
-    fig.savefig(f"{OUT}/ablation_alpha_pareto.png", dpi=200, bbox_inches="tight")
-    print(f"  -> {OUT}/ablation_alpha_pareto.png")
+    fig.savefig(OUTPUT_DIR / "ablation_alpha_pareto.png", dpi=200, bbox_inches="tight")
+    print(f"  -> {OUTPUT_DIR / 'ablation_alpha_pareto.png'}")
     plt.close(fig)
 
 
@@ -143,10 +294,15 @@ def plot_architecture_comparison():
 
     # Flash-lite
     ax = axes[0]
+    flash_lite_ids = [158, 164, 165]
     configs = [
-        ("alma\nflash-lite", 83.8, 0.94, "#2563eb"),
-        ("simple ASSIST\nflash-lite", 84.9, 0.83, "#16a34a"),
-        ("simple no-assist\nflash-lite", 85.4, 0.78, "#f59e0b"),
+        (
+            _display_name(RUN_SPECS_BY_ID[run_id], include_assist=True, width=14),
+            RUN_SPECS_BY_ID[run_id].vf_pct,
+            RUN_SPECS_BY_ID[run_id].cpp_cents,
+            "#2563eb" if run_id == 158 else "#16a34a" if run_id == 164 else "#f59e0b",
+        )
+        for run_id in flash_lite_ids
     ]
     x = np.arange(len(configs))
     bars = ax.bar(x, [c[1] for c in configs], color=[c[3] for c in configs], width=0.6, edgecolor="white")
@@ -163,10 +319,15 @@ def plot_architecture_comparison():
 
     # Flash
     ax = axes[1]
+    flash_ids = [159, 171, 167]
     configs = [
-        ("alma\nflash", 83.6, 1.18, "#2563eb"),
-        ("simple ASSIST\nflash", 87.8, 1.34, "#16a34a"),
-        ("simple no-assist\nflash", 85.3, 1.27, "#f59e0b"),
+        (
+            _display_name(RUN_SPECS_BY_ID[run_id], include_assist=True, width=14),
+            RUN_SPECS_BY_ID[run_id].vf_pct,
+            RUN_SPECS_BY_ID[run_id].cpp_cents,
+            "#2563eb" if run_id == 159 else "#16a34a" if run_id == 171 else "#f59e0b",
+        )
+        for run_id in flash_ids
     ]
     x = np.arange(len(configs))
     bars = ax.bar(x, [c[1] for c in configs], color=[c[3] for c in configs], width=0.6, edgecolor="white")
@@ -182,8 +343,8 @@ def plot_architecture_comparison():
 
     fig.suptitle("Impact de l'architecture à modèle constant", fontsize=14, fontweight="bold", y=1.02)
     fig.tight_layout()
-    fig.savefig(f"{OUT}/ablation_alpha_architecture.png", dpi=200, bbox_inches="tight")
-    print(f"  -> {OUT}/ablation_alpha_architecture.png")
+    fig.savefig(OUTPUT_DIR / "ablation_alpha_architecture.png", dpi=200, bbox_inches="tight")
+    print(f"  -> {OUTPUT_DIR / 'ablation_alpha_architecture.png'}")
     plt.close(fig)
 
 
@@ -193,8 +354,16 @@ def plot_assist_impact():
     fig, ax = plt.subplots(figsize=(9, 5.5))
 
     pairs = [
-        ("simple flash-lite", 84.9, 85.4),
-        ("simple flash", 87.8, 85.3),
+        (
+            _display_name(RUN_SPECS_BY_ID[164], include_assist=False),
+            RUN_SPECS_BY_ID[164].vf_pct,
+            RUN_SPECS_BY_ID[165].vf_pct,
+        ),
+        (
+            _display_name(RUN_SPECS_BY_ID[171], include_assist=False),
+            RUN_SPECS_BY_ID[171].vf_pct,
+            RUN_SPECS_BY_ID[167].vf_pct,
+        ),
     ]
     x = np.arange(len(pairs))
     w = 0.3
@@ -227,8 +396,8 @@ def plot_assist_impact():
             transform=ax.transAxes, ha="center", fontsize=9, style="italic", color="#666")
 
     fig.tight_layout()
-    fig.savefig(f"{OUT}/ablation_alpha_assist_impact.png", dpi=200, bbox_inches="tight")
-    print(f"  -> {OUT}/ablation_alpha_assist_impact.png")
+    fig.savefig(OUTPUT_DIR / "ablation_alpha_assist_impact.png", dpi=200, bbox_inches="tight")
+    print(f"  -> {OUTPUT_DIR / 'ablation_alpha_assist_impact.png'}")
     plt.close(fig)
 
 
@@ -240,24 +409,23 @@ def plot_summary_table():
 
     headers = ["Run", "Architecture", "Modèle", "ASSIST", "VF%", "Cat%", "Strat%", "¢/post", "Posts", "Pareto"]
 
-    sorted_runs = sorted(RUNS, key=lambda r: r[8])
-
-    pareto_ids = {161, 165, 171}
+    sorted_runs = sorted(RUN_SPECS, key=lambda run: run.cpp_cents)
+    pareto_ids = {run.run_id for run in _compute_pareto_frontier(RUN_SPECS)}
 
     cell_text = []
     cell_colors = []
-    for r in sorted_runs:
-        is_pareto = r[0] in pareto_ids
+    for run in sorted_runs:
+        is_pareto = run.run_id in pareto_ids
         row = [
-            str(r[0]),
-            r[1],
-            r[2],
-            r[3],
-            f"{r[4]:.1f}%",
-            f"{r[5]:.1f}%",
-            f"{r[6]:.1f}%",
-            f"{r[8]:.2f}",
-            str(r[9]),
+            str(run.run_id),
+            run.mode_label,
+            run.tier_label,
+            _assist_label_text(run.assist_label),
+            f"{run.vf_pct:.1f}%",
+            f"{run.cat_pct:.1f}%",
+            f"{run.strat_pct:.1f}%",
+            f"{run.cpp_cents:.2f}",
+            str(run.n_posts),
             "★" if is_pareto else "",
         ]
         cell_text.append(row)
@@ -287,8 +455,8 @@ def plot_summary_table():
                  fontsize=13, fontweight="bold", pad=20)
 
     fig.tight_layout()
-    fig.savefig(f"{OUT}/ablation_alpha_summary.png", dpi=200, bbox_inches="tight")
-    print(f"  -> {OUT}/ablation_alpha_summary.png")
+    fig.savefig(OUTPUT_DIR / "ablation_alpha_summary.png", dpi=200, bbox_inches="tight")
+    print(f"  -> {OUTPUT_DIR / 'ablation_alpha_summary.png'}")
     plt.close(fig)
 
 
