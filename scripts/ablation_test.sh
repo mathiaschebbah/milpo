@@ -15,8 +15,10 @@ RUNS=(
   "--simple --test --model flash-lite"
   "--simple --test --model flash"
   "--simple --test --model flash-lite --no-assist"
-  "--simple --test --model flash --no-assist"
+  "--simple --test --model flash       --no-assist"
 )
+
+# Miroir exact des 8 runs alpha (158-171).
 
 echo "════════════════════════════════════════════════════════════"
 echo "  Ablation TEST — ${#RUNS[@]} runs séquentiels"
