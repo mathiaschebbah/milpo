@@ -8,6 +8,7 @@ viennent des YAML du vault via `milpo.taxonomy_renderer`.
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 
 from milpo.prompts import alma, classifier, simple
@@ -143,6 +144,27 @@ def parse_classifier_arguments(arguments: str, axis: str, labels: list[str]) -> 
     return label, parsed.confidence, parsed.reasoning
 
 
+def _extract_label_from_text(text: str, labels: list[str], axis: str) -> str:
+    """Tente d'extraire un label depuis du texte libre (reasoning).
+
+    Fallback quand le LLM omet un champ du tool call JSON mais mentionne
+    le label correct dans son reasoning. Cherche le label le plus long
+    qui apparaît dans le texte (priorité aux labels spécifiques).
+    """
+    import json as _json
+    text_lower = text.lower()
+    matches = [l for l in labels if l.lower() in text_lower]
+    if not matches:
+        kv_pattern = re.compile(rf'"{axis}"\s*:\s*"([^"]+)"')
+        m = kv_pattern.search(text)
+        if m:
+            return _match_label(m.group(1), labels, axis)
+        raise RuntimeError(
+            f"Simple fallback {axis}: aucun label trouvé dans le reasoning"
+        )
+    return max(matches, key=len)
+
+
 def parse_simple_arguments(
     arguments: str,
     vf_labels: list[str],
@@ -152,12 +174,41 @@ def parse_simple_arguments(
     """Parse et valide les arguments d'un tool_call du classifieur simple.
 
     Retourne (visual_format, category, strategy, confidence, reasoning).
+    Si le LLM omet des champs (bug Flash no-assist), tente de les extraire
+    du reasoning ou du JSON brut via fallback.
     """
-    parsed = SimpleDecision.model_validate_json(arguments)
+    import json as _json
+    try:
+        parsed = SimpleDecision.model_validate_json(arguments)
+        return (
+            _match_label(parsed.visual_format, vf_labels, "visual_format"),
+            _match_label(parsed.category, cat_labels, "category"),
+            _match_label(parsed.strategy, strat_labels, "strategy"),
+            parsed.confidence,
+            parsed.reasoning,
+        )
+    except Exception:
+        pass
+
+    raw = _json.loads(arguments)
+    reasoning = raw.get("reasoning", "")
+    confidence = raw.get("confidence", "high")
+    vf = raw.get("visual_format")
+    cat = raw.get("category")
+    strat = raw.get("strategy")
+
+    search_text = reasoning + " " + arguments
+    if not vf:
+        vf = _extract_label_from_text(search_text, vf_labels, "visual_format")
+    if not cat:
+        cat = _extract_label_from_text(search_text, cat_labels, "category")
+    if not strat:
+        strat = _extract_label_from_text(search_text, strat_labels, "strategy")
+
     return (
-        _match_label(parsed.visual_format, vf_labels, "visual_format"),
-        _match_label(parsed.category, cat_labels, "category"),
-        _match_label(parsed.strategy, strat_labels, "strategy"),
-        parsed.confidence,
-        parsed.reasoning,
+        _match_label(vf, vf_labels, "visual_format"),
+        _match_label(cat, cat_labels, "category"),
+        _match_label(strat, strat_labels, "strategy"),
+        confidence,
+        reasoning,
     )
