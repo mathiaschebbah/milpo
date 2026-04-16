@@ -122,6 +122,15 @@ def get_async_client_openrouter() -> AsyncOpenAI:
     )
 
 
+def get_async_client_ollama() -> AsyncOpenAI:
+    """Client Ollama local (API OpenAI-compatible sur localhost:11434)."""
+    return AsyncOpenAI(
+        base_url="http://localhost:11434/v1",
+        api_key="ollama",
+        timeout=120.0,
+    )
+
+
 def get_async_client() -> AsyncOpenAI:
     if not LLM_API_KEY:
         raise RuntimeError(
@@ -686,9 +695,10 @@ async def async_classify_alma_batch(
     classifier_model: str | None = None,
     classifier_vf_model: str | None = None,
     classifier_client: AsyncOpenAI | None = None,
+    descriptor_client: AsyncOpenAI | None = None,
 ) -> list[PipelineResult]:
     """Batch ASSIST : Alma (multimodal) + 3 classifieurs text-only par post."""
-    client = get_async_client()
+    client = descriptor_client or get_async_client()
     semaphore = asyncio.Semaphore(max_concurrent_api)
     post_semaphore = asyncio.Semaphore(max_concurrent_posts)
 

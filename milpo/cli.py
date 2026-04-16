@@ -63,8 +63,11 @@ _FLASH = "gemini-3-flash-preview"
 # - qwen        : descripteur reste Google AI (flash-lite, multimodal) ;
 #                 classifiers text-only basculent sur qwen/qwen3.5-flash-02-23
 #                 via OpenRouter ($0.065/$0.26). Model-agnostic test.
+# - gemma4      : tout en local via Ollama (gemma4:e4b, 4.5B params,
+#                 multimodal images+audio, tool calling natif). Coût $0.
 _QWEN = "qwen/qwen3.5-flash-02-23"
-MODEL_TIERS: tuple[str, ...] = ("flash-lite", "flash", "full-flash", "qwen")
+_GEMMA4 = "gemma4:e4b"
+MODEL_TIERS: tuple[str, ...] = ("flash-lite", "flash", "full-flash", "qwen", "gemma4")
 
 
 def _resolve_tier(mode: str, tier: str) -> dict[str, str]:
@@ -96,6 +99,13 @@ def _resolve_tier(mode: str, tier: str) -> dict[str, str]:
             "classifier": _QWEN,         # text-only → OpenRouter Qwen
             "classifier_vf": _QWEN,
             "simple": _FLASH_LITE,       # fallback flash-lite (simple = multimodal)
+        }
+    if tier == "gemma4":
+        return {
+            "descriptor": _GEMMA4,       # multimodal local (images+audio)
+            "classifier": _GEMMA4,       # text-only local
+            "classifier_vf": _GEMMA4,
+            "simple": _GEMMA4,
         }
     raise ValueError(f"Tier inconnu : {tier!r}")
 
@@ -431,25 +441,33 @@ async def run_classification(args) -> int:
         f", modèle {model_tier}" if model_tier else "",
     )
 
-    # Si classifiers sur OpenRouter (tier qwen), créer un 2ème client.
+    # Si classifiers sur provider alternatif, créer un 2ème client.
     clf_client = None
+    ollama_client = None
     clf_model = resolved_models.get("classifier") or ""
-    if "qwen" in clf_model or "openrouter" in clf_model:
+    desc_model = resolved_models.get("descriptor") or ""
+    if "qwen" in clf_model:
         from milpo.inference import get_async_client_openrouter
         clf_client = get_async_client_openrouter()
         log.info("Classifiers via OpenRouter (%s)", clf_model)
+    elif "gemma4" in desc_model:
+        from milpo.inference import get_async_client_ollama
+        ollama_client = get_async_client_ollama()
+        clf_client = ollama_client
+        log.info("Pipeline complète via Ollama local (%s)", desc_model)
 
     if mode == "alma":
         results = await async_classify_alma_batch(
             posts=post_inputs,
             labels_by_scope=labels_by_scope,
             max_concurrent_api=20,
-            max_concurrent_posts=10,
+            max_concurrent_posts=10 if "gemma4" not in desc_model else 2,
             on_progress=on_progress,
             descriptor_model=resolved_models["descriptor"],
             classifier_model=resolved_models["classifier"],
             classifier_vf_model=resolved_models["classifier_vf"],
             classifier_client=clf_client,
+            descriptor_client=ollama_client if "gemma4" in desc_model else None,
         )
     else:
         results = await async_classify_simple_batch(
