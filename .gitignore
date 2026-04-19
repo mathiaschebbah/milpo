@@ -42,5 +42,31 @@ build/
 *.playwright-mcp/
 uv.lock
 
-docs/
-
+docs/**/*.pdf
+docs/**/*.tex
+docs/**/*.png
+docs/**/*.aux
+docs/**/*.log
+docs/**/*.out
+docs/**/*.toc
+docs/**/*.fls
+docs/**/*.fdb_latexmk
+docs/**/*.synctex.gz
+docs/**/*.json
+docs/**/*.csv
+docs/**/*.jsonl
+docs/**/*.txt
+docs/**/*.bbl
+docs/**/*.bib
+docs/**/*.nav
+docs/**/*.snm
+docs/**/*.lof
+docs/**/*.html
+docs/**/*.css
+docs/**/*.woff2
+docs/**/*.ttf
+docs/**/*.bak
+docs/**/*.lot
+docs/**/*.blg
+docs/**/*.bcf
+docs/**/*.lot */
